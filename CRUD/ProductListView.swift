@@ -1,35 +1,54 @@
-//
-//  ProductListView.swift
-//  CRUD
-//
-//  Created by Rabin Joshi on 2025-05-20.
-//
-
 import SwiftUI
 
 struct ProductListView: View {
-    
     @State var vm: ProductListViewModel
+
     init(vm: ProductListViewModel) {
         self.vm = vm
     }
-    
+
     var body: some View {
         Group {
             if vm.isLoading {
-                ProgressView("Loading products...")
-            } else if let error = vm.errorDescription {
-                Text(error)
+                loadingView
+            } else if let error = vm.error {
+                errorView(for: error)
+            } else if vm.products.isEmpty {
+                emptyView
             } else {
-                List {
-                    ForEach(vm.products) { prod in
-                        Text(prod.title)
-                    }
-                }
+                productListView
             }
         }
         .task {
             await vm.fetchProducts()
+        }
+    }
+
+    private var loadingView: some View {
+        ProgressView("Loading Products...")
+    }
+
+    private var emptyView: some View {
+        ContentUnavailableView(
+            "No Products",
+            systemImage: "shippingbox",
+            description: Text("Try adding new items.")
+        )
+    }
+
+    private func errorView(for error: Error) -> some View {
+        ErrorView(error: error) {
+            Task {
+                await vm.fetchProducts()
+            }
+        }
+    }
+    
+    private var productListView: some View {
+        List {
+            ForEach(vm.products) { prod in
+                Text(prod.title)
+            }
         }
     }
 }
@@ -37,9 +56,11 @@ struct ProductListView: View {
 #Preview("Success") {
     ProductListView(
         vm: ProductListViewModel(
-            client: ProductClient.mock(fetchAll: {
-                Product.mockProducts
-            }                      )
+            client: ProductClient.mock(
+                fetchAll: {
+                    Product.mockProducts
+                }
+            )
         )
     )
 }
@@ -47,10 +68,12 @@ struct ProductListView: View {
 #Preview("Loading") {
     ProductListView(
         vm: ProductListViewModel(
-            client: ProductClient.mock(fetchAll: {
-                try await Task.sleep(nanoseconds: UInt64.max)
-                return []
-            })
+            client: ProductClient.mock(
+                fetchAll: {
+                    try await Task.sleep(for: .seconds(5))
+                    return Product.mockProducts
+                }
+            )
         )
     )
 }
@@ -58,9 +81,23 @@ struct ProductListView: View {
 #Preview("Error") {
     ProductListView(
         vm: ProductListViewModel(
-            client: ProductClient.mock(fetchAll: {
-                throw NSError(domain: "ProductClient.Mock", code: 404, userInfo: [NSLocalizedDescriptionKey: "Product not found"])
-            })
+            client: ProductClient.mock(
+                fetchAll: {
+                    throw URLError(.notConnectedToInternet)
+                }
+            )
+        )
+    )
+}
+
+#Preview("Empty") {
+    ProductListView(
+        vm: ProductListViewModel(
+            client: ProductClient.mock(
+                fetchAll: {
+                    []
+                }
+            )
         )
     )
 }
@@ -69,27 +106,28 @@ struct ProductListView: View {
 @Observable
 final class ProductListViewModel {
     var isLoading: Bool
-    var errorDescription: String?
+    var error: Error?
     var products: [Product]
     
     private let client: ProductClient
     
     init(client: ProductClient) {
         self.isLoading = false
-        self.errorDescription = nil
+        self.error = nil
         self.products = []
         self.client = client
     }
     
     func fetchProducts() async {
         isLoading = true
-        defer {
-            isLoading = false
-        }
+        error = nil
         do {
             products = try await client.fetchAll()
+            isLoading = false
+            error = nil
         } catch {
-            errorDescription = error.localizedDescription
+            isLoading = false
+            self.error = error
         }
     }
 }

@@ -22,8 +22,8 @@ extension ProductClient {
         return ProductClient(
             fetchAll: {
                 let data = try await client.get(basePath)
-                let decoded = try JSONDecoder().decode([Product].self, from: data)
-                return decoded
+                let response = try JSONDecoder().decode(ProductListResponse.self, from: data)
+                return response.products
             },
             
             fetchById: { id in

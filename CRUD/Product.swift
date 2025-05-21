@@ -14,7 +14,7 @@ struct Product: Codable, Identifiable, Equatable {
     
     static let mock = Product(id: 1, title: "iPhone")
 }
-
-private struct ProductListResponse: Decodable {
+ 
+struct ProductListResponse: Decodable {
     let products: [Product]
 }
