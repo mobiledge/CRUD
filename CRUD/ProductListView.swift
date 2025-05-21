@@ -2,17 +2,15 @@ import SwiftUI
 
 struct ProductListView: View {
     @State var vm: ProductListViewModel
-
+    
     init(vm: ProductListViewModel) {
         self.vm = vm
     }
-
+    
     var body: some View {
         Group {
-            if vm.isLoading {
+            if vm.products.isEmpty && vm.isLoading {
                 loadingView
-            } else if let error = vm.error {
-                errorView(for: error)
             } else if vm.products.isEmpty {
                 emptyView
             } else {
@@ -22,12 +20,20 @@ struct ProductListView: View {
         .task {
             await vm.fetchProducts()
         }
+        .errorAlert(
+            error: $vm.error,
+            tryAgainAction: {
+                Task {
+                    await vm.fetchProducts()
+                }
+            }
+        )
     }
-
+    
     private var loadingView: some View {
         ProgressView("Loading Products...")
     }
-
+    
     private var emptyView: some View {
         ContentUnavailableView(
             "No Products",
@@ -35,7 +41,7 @@ struct ProductListView: View {
             description: Text("Try adding new items.")
         )
     }
-
+    
     private func errorView(for error: Error) -> some View {
         ErrorView(error: error) {
             Task {
@@ -50,8 +56,14 @@ struct ProductListView: View {
                 Text(prod.title)
             }
         }
+        .refreshable {
+            Task {
+                await vm.fetchProducts()
+            }
+        }
     }
 }
+
 
 #Preview("Success") {
     ProductListView(
@@ -102,32 +114,28 @@ struct ProductListView: View {
     )
 }
 
-
+@MainActor
 @Observable
 final class ProductListViewModel {
-    var isLoading: Bool
-    var error: Error?
-    var products: [Product]
+    
+    var isLoading = false
+    var products = [Product]()
+    var error: Error? = nil
     
     private let client: ProductClient
     
     init(client: ProductClient) {
-        self.isLoading = false
-        self.error = nil
-        self.products = []
         self.client = client
     }
     
     func fetchProducts() async {
         isLoading = true
-        error = nil
         do {
             products = try await client.fetchAll()
-            isLoading = false
             error = nil
         } catch {
-            isLoading = false
             self.error = error
         }
+        isLoading = false
     }
 }

@@ -15,12 +15,19 @@ struct ProductClient {
     var delete: DeleteByIdClosure
 }
 
+var count = 0
+
 extension ProductClient {
     static func live(client: Client) -> ProductClient {
         let basePath = "products"
         
         return ProductClient(
             fetchAll: {
+                
+                count += 1
+                if count % 2 == 0 {
+                    throw URLError(.unknown)
+                }
                 let data = try await client.get(basePath)
                 let response = try JSONDecoder().decode(ProductListResponse.self, from: data)
                 return response.products
