@@ -1,17 +1,18 @@
 import Foundation
 
-typealias FetchAllProducts = () async throws -> [Product]
-typealias FetchProduct = (Int) async throws -> Product
-typealias CreateProduct = (Product) async throws -> Product
-typealias UpdateProduct = (Product) async throws -> Product
-typealias DeleteProduct = (Int) async throws -> Void
-
 struct ProductClient {
-    var fetchAll: FetchAllProducts
-    var fetch: FetchProduct
-    var create: CreateProduct
-    var update: UpdateProduct
-    var delete: DeleteProduct
+    
+    typealias FetchAllClosure = () async throws -> [Product]
+    typealias FetchByIdClosure = (Int) async throws -> Product
+    typealias CreateClosure = (Product) async throws -> Product
+    typealias UpdateClosure = (Product) async throws -> Product
+    typealias DeleteByIdClosure = (Int) async throws -> Void
+    
+    var fetchAll: FetchAllClosure
+    var fetchById: FetchByIdClosure
+    var create: CreateClosure
+    var update: UpdateClosure
+    var delete: DeleteByIdClosure
 }
 
 extension ProductClient {
@@ -25,7 +26,7 @@ extension ProductClient {
                 return decoded
             },
             
-            fetch: { id in
+            fetchById: { id in
                 let data = try await client.get("\(basePath)/\(id)")
                 return try JSONDecoder().decode(Product.self, from: data)
             },
@@ -48,72 +49,20 @@ extension ProductClient {
         )
     }
     
-    // **MARK: - Mock Implementation**
-    static func mock() -> ProductClient {
-        var products = Product.mockProducts
-        
-        return ProductClient(
-            fetchAll: {
-                return products
-            },
-            
-            fetch: { id in
-                if let product = products.first(where: { $0.id == id }) {
-                    return product
-                }
-                throw NSError(domain: "ProductClient", code: 404, userInfo: [NSLocalizedDescriptionKey: "Product not found"])
-            },
-            
-            create: { product in
-                // Ensure no duplicate IDs
-                guard !products.contains(where: { $0.id == product.id }) else {
-                    throw NSError(domain: "ProductClient", code: 409, userInfo: [NSLocalizedDescriptionKey: "Product with this ID already exists"])
-                }
-                products.append(product)
-                return product
-            },
-            
-            update: { product in
-                if let index = products.firstIndex(where: { $0.id == product.id }) {
-                    products[index] = product
-                    return product
-                }
-                throw NSError(domain: "ProductClient", code: 404, userInfo: [NSLocalizedDescriptionKey: "Product not found"])
-            },
-            
-            delete: { id in
-                products.removeAll(where: { $0.id == id })
-            }
-        )
-    }
     
-    // **MARK: - Preview Implementation**
-    static var preview: ProductClient {
+    static func mock(
+        fetchAll: @escaping FetchAllClosure = { [] },
+        fetch: @escaping FetchByIdClosure = { _ in Product.mock },
+        create: @escaping CreateClosure = { product in product },
+        update: @escaping UpdateClosure = { product in product },
+        delete: @escaping DeleteByIdClosure = { _ in }
+    ) -> ProductClient {
         return ProductClient(
-            fetchAll: {
-                return Product.mockProducts
-            },
-            
-            fetch: { id in
-                if let product = Product.mockProducts.first(where: { $0.id == id }) {
-                    return product
-                }
-                return Product.mock
-            },
-            
-            create: { product in
-                // Preview implementation just returns the product without creating
-                return product
-            },
-            
-            update: { product in
-                // Preview implementation just returns the product without updating
-                return product
-            },
-            
-            delete: { _ in
-                // Preview implementation does nothing for delete
-            }
+            fetchAll: fetchAll,
+            fetchById: fetch,
+            create: create,
+            update: update,
+            delete: delete
         )
     }
 }
