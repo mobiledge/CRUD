@@ -117,7 +117,7 @@ extension ErrorViewModel {
         let title: LocalizedStringKey
         let imageName: String
         let description: LocalizedStringKey
-
+        
         switch urlError.code {
         case .notConnectedToInternet, .networkConnectionLost:
             title = "No Internet Connection"
@@ -126,7 +126,7 @@ extension ErrorViewModel {
             title = "A Network Issue Occurred"
             imageName = "exclamationmark.icloud"
         }
-
+        
         switch urlError.code {
         case .notConnectedToInternet:
             description = "Looks like you're not connected to the internet. Check your connection and try again."
@@ -149,7 +149,7 @@ extension ErrorViewModel {
         case .secureConnectionFailed:
             description = "We're having trouble making a secure connection. Try again in a moment."
         case .serverCertificateHasBadDate, .serverCertificateUntrusted,
-             .serverCertificateHasUnknownRoot, .serverCertificateNotYetValid:
+                .serverCertificateHasUnknownRoot, .serverCertificateNotYetValid:
             description = "There's a security issue on our end. Try again later or let us know if it keeps happening."
         case .cannotLoadFromNetwork, .dataNotAllowed:
             description = "Can't access the network right now. Check your settings and try again."
@@ -189,5 +189,57 @@ extension ErrorViewModel {
             description = "We're having trouble with your request. Please try again."
         }
         self.init(description: description)
+    }
+}
+
+extension ErrorViewModel {
+    init(clientError: ClientError) {
+        let imageName = "exclamationmark.icloud"
+        let description: LocalizedStringKey
+
+        switch clientError {
+        case .badHTTPResponse:
+            description = "We received an unexpected response from the server. Please try again, and if the problem continues, let us know."
+        
+        case .badStatusCode(let statusCode):
+            switch statusCode {
+            // 4xx Client Errors
+            case 400:
+                description = "Hmm, something wasn't quite right with that request. Could you try that again, perhaps checking for any typos?"
+            case 401:
+                description = "Looks like you need to be signed in for this. Please sign in and give it another go!"
+            case 403:
+                description = "It seems you don't have access to this particular spot. If you think this is a mistake, feel free to reach out to us."
+            case 404:
+                description = "Oops! We couldn't find what you were looking for. Maybe try searching again or double-check the link?"
+            case 408:
+                description = "That took a bit longer than expected. Your internet might be a bit slow, or our servers are busy. Please try again in a moment."
+            case 429:
+                description = "Whoa there! Looks like you're doing a lot at once. Please take a short break and then try again."
+            
+            // 5xx Server Errors
+            case 500:
+                description = "Uh oh, something went wrong on our side. We're already looking into it! Please try again in a little bit."
+            case 501:
+                description = "It seems the action you're trying to perform isn't available right now. We're always working on new things, so maybe check back later?"
+            case 502:
+                description = "We're having a little trouble connecting to one of our services. Please give it another try in a moment."
+            case 503:
+                description = "Our servers are a bit busy or undergoing maintenance right now. We should be back up shortly. Please try again soon!"
+            case 504:
+                description = "It seems we're waiting a long time for a response from our servers. This might be a temporary hiccup. Please try again in a moment."
+            
+            // Default for other client or server errors based on status code
+            default:
+                if (400..<500).contains(statusCode) {
+                    description = "It looks like there was an issue with your request. Please double-check and try again. (Error code: \(statusCode))"
+                } else if (500..<600).contains(statusCode) {
+                    description = "We've hit a snag on our end. We're looking into it! Please try again later. (Error code: \(statusCode))"
+                } else {
+                    description = "An unexpected issue occurred while trying to connect. Please try again. (Error code: \(statusCode))"
+                }
+            }
+        }
+        self.init(systemImageName: imageName, description: description)
     }
 }

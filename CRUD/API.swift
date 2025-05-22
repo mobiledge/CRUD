@@ -48,10 +48,10 @@ struct Client {
 
             let (data, response) = try await session.data(for: request)
             guard let httpResponse = response as? HTTPURLResponse else {
-                throw ClientError.invalidResponse
+                throw ClientError.badHTTPResponse
             }
             guard (200..<300).contains(httpResponse.statusCode) else {
-                throw ClientError.badStatusCode(httpResponse.statusCode, data)
+                throw ClientError.badStatusCode(httpResponse.statusCode)
             }
             return data
         }
@@ -66,12 +66,6 @@ struct Client {
     static func mock(throwing error: Error) -> Client {
         Client { _, _, _ in throw error }
     }
-}
-
-// MARK: - Client Errors
-enum ClientError: Error {
-    case invalidResponse
-    case badStatusCode(Int, Data)
 }
 
 // MARK: - Client Helper Methods
@@ -91,4 +85,10 @@ extension Client {
     func delete(_ path: Path, body: Body? = nil) async throws -> Data {
         try await handleRequest(path, .delete, body)
     }
+}
+
+// MARK: - Client Errors
+enum ClientError: Error {
+    case badHTTPResponse
+    case badStatusCode(Int)
 }
