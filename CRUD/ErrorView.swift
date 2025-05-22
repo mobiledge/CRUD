@@ -115,39 +115,20 @@ struct ErrorAlertModifier: ViewModifier {
         return ErrorViewModel(error: error)
     }
     
-    private var alertTitle: Text {
-        Text(errorViewModel.title)
-    }
-    
-    private var alertMessage: Text {
-        Text(errorViewModel.description)
-    }
-    
-    private var dismissButton: Alert.Button {
-        Alert.Button.cancel(Text("Dismiss"))
-    }
-    
-    private var tryAgainButton: Alert.Button? {
-        guard let tryAgainAction = tryAgainAction else {
-            return nil
-        }
-        return .default(Text("Try Again"), action: tryAgainAction)
-    }
-    
     func body(content: Content) -> some View {
         content.alert(isPresented: isPresenting) {
-            if let tryAgainButton = tryAgainButton {
+            if let tryAgainAction = tryAgainAction {
                 return Alert(
-                    title: alertTitle,
-                    message: alertMessage,
-                    primaryButton: tryAgainButton,
-                    secondaryButton: dismissButton
+                    title: Text(errorViewModel.title),
+                    message: Text(errorViewModel.description),
+                    primaryButton: .default(Text("Try Again"), action: tryAgainAction),
+                    secondaryButton: .cancel(Text("Dismiss"))
                 )
             } else {
                 return Alert(
-                    title: alertTitle,
-                    message: alertMessage,
-                    dismissButton: dismissButton
+                    title: Text(errorViewModel.title),
+                    message: Text(errorViewModel.description),
+                    dismissButton: .cancel(Text("Dismiss"))
                 )
             }
         }
