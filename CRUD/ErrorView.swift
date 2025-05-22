@@ -92,23 +92,9 @@ extension View {
 
 // MARK: - ErrorViewModel
 struct ErrorViewModel {
-    static let defaultDisplayTitle: LocalizedStringKey = "Something Went Wrong"
-    static let defaultDisplaySystemImageName: String = "exclamationmark.triangle"
-    static let defaultDisplayDescription: LocalizedStringKey = "Something unexpected happened. Try again, or reach out if it keeps happening."
-    
-    let title: LocalizedStringKey
-    let systemImageName: String
-    let description: LocalizedStringKey
-
-    init(
-        displayTitle: LocalizedStringKey = Self.defaultDisplayTitle,
-        displaySystemImageName: String = Self.defaultDisplaySystemImageName,
-        displayDescription: LocalizedStringKey = Self.defaultDisplayDescription
-    ) {
-        self.title = displayTitle
-        self.systemImageName = displaySystemImageName
-        self.description = displayDescription
-    }
+    var title: LocalizedStringKey = "Something Went Wrong"
+    var systemImageName: String = "exclamationmark.triangle"
+    var description: LocalizedStringKey = "Something unexpected happened. Try again, or reach out if it keeps happening."
 }
 
 // MARK: - ErrorViewModel + Error & like
@@ -170,7 +156,7 @@ extension ErrorViewModel {
         default:
             description = "Something went wrong with your connection. Please try again."
         }
-        self.init(displayTitle: title, displaySystemImageName: imageName, displayDescription: description)
+        self.init(title: title, systemImageName: imageName, description: description)
     }
 }
 
@@ -189,21 +175,19 @@ extension ErrorViewModel {
         @unknown default:
             description = "We're having trouble understanding the response. Please try again."
         }
-        self.init(displayDescription: description)
+        self.init(description: description)
     }
 }
 
 extension ErrorViewModel {
     init(encodingError: EncodingError) {
-        
         let description: LocalizedStringKey
-
         switch encodingError {
         case .invalidValue:
             description = "Something doesn't look right with what you entered. Double-check and try again."
         @unknown default:
             description = "We're having trouble with your request. Please try again."
         }
-        self.init(displayDescription: description)
+        self.init(description: description)
     }
 }
