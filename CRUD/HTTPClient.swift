@@ -36,7 +36,8 @@ struct HTTPClient {
 
     static func live(server: HTTPServer, session: URLSession = .shared) -> HTTPClient {
         HTTPClient { path, method, body in
-            var request = URLRequest(url: server.url.appendingPathComponent(path))
+            let url = server.url.appending(path: path)
+            var request = URLRequest(url: url)
             request.httpMethod = method.rawValue
             request.httpBody = body
 
