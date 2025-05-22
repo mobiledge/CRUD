@@ -1,8 +1,8 @@
 import Foundation
 
 // MARK: - Typealiases
-typealias Path = String
-typealias Body = Data
+typealias HTTPPath = String
+typealias HTTPBody = Data
 
 // MARK: - HTTPMethod
 enum HTTPMethod: String {
@@ -10,7 +10,7 @@ enum HTTPMethod: String {
 }
 
 // MARK: - Server
-struct Server {
+struct HTTPServer {
     let url: URL
     let description: String?
 
@@ -26,16 +26,16 @@ struct Server {
         self.init(url: url, description: description)
     }
 
-    static let prod = Server(staticString: "https://dummyjson.com/", description: "Production")
-    static let mock = Server(staticString: "https://mock.api/", description: "Mock")
+    static let prod = HTTPServer(staticString: "https://dummyjson.com/", description: "Production")
+    static let mock = HTTPServer(staticString: "https://mock.api/", description: "Mock")
 }
 
 // MARK: - Client
-struct Client {
-    var handleRequest: (Path, HTTPMethod, Body?) async throws -> Data
+struct HTTPClient {
+    var handleRequest: (HTTPPath, HTTPMethod, HTTPBody?) async throws -> Data
 
-    static func live(server: Server, session: URLSession = .shared) -> Client {
-        Client { path, method, body in
+    static func live(server: HTTPServer, session: URLSession = .shared) -> HTTPClient {
+        HTTPClient { path, method, body in
             var request = URLRequest(url: server.url.appendingPathComponent(path))
             request.httpMethod = method.rawValue
             request.httpBody = body
@@ -48,47 +48,47 @@ struct Client {
 
             let (data, response) = try await session.data(for: request)
             guard let httpResponse = response as? HTTPURLResponse else {
-                throw ClientError.badHTTPResponse
+                throw HTTPError.badHTTPResponse
             }
             guard (200..<300).contains(httpResponse.statusCode) else {
-                throw ClientError.badStatusCode(httpResponse.statusCode)
+                throw HTTPError.badStatusCode(httpResponse.statusCode)
             }
             return data
         }
     }
 
-    static func mock(returning data: Data) -> Client {
-        Client { _, _, _ in
+    static func mock(returning data: Data) -> HTTPClient {
+        HTTPClient { _, _, _ in
             return data
         }
     }
 
-    static func mock(throwing error: Error) -> Client {
-        Client { _, _, _ in throw error }
+    static func mock(throwing error: Error) -> HTTPClient {
+        HTTPClient { _, _, _ in throw error }
     }
 }
 
 // MARK: - Client Helper Methods
-extension Client {
-    func get(_ path: Path) async throws -> Data {
+extension HTTPClient {
+    func get(_ path: HTTPPath) async throws -> Data {
         try await handleRequest(path, .get, nil)
     }
 
-    func post(_ path: Path, body: Body?) async throws -> Data {
+    func post(_ path: HTTPPath, body: HTTPBody?) async throws -> Data {
         try await handleRequest(path, .post, body)
     }
 
-    func put(_ path: Path, body: Body?) async throws -> Data {
+    func put(_ path: HTTPPath, body: HTTPBody?) async throws -> Data {
         try await handleRequest(path, .put, body)
     }
 
-    func delete(_ path: Path, body: Body? = nil) async throws -> Data {
+    func delete(_ path: HTTPPath, body: HTTPBody? = nil) async throws -> Data {
         try await handleRequest(path, .delete, body)
     }
 }
 
 // MARK: - Client Errors
-enum ClientError: Error {
+enum HTTPError: Error {
     case badHTTPResponse
     case badStatusCode(Int)
 }

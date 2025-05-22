@@ -33,6 +33,68 @@ struct ErrorView: View {
     }
 }
 
+#Preview("notConnectedToInternet") {
+    ErrorView(
+        error: URLError(.notConnectedToInternet),
+        retryAction: {})
+}
+
+#Preview("timedOut") {
+    ErrorView(
+        error: URLError(.timedOut),
+        retryAction: {})
+}
+
+#Preview("decodingKeyNotFound") {
+    ErrorView(
+        error: DecodingError.keyNotFound(
+            CodingKeys.someKey, // Example CodingKey
+            DecodingError.Context(
+                codingPath: [],
+                debugDescription: "Preview: Expected to find key 'someKey' but it was missing."
+            )
+        ),
+        retryAction: {}
+    )
+}
+
+#Preview("encodingInvalidValue") {
+    ErrorView(
+        error: EncodingError.invalidValue(
+            "Invalid Character", // Example invalid value
+            EncodingError.Context(
+                codingPath: [CodingKeys.someKey], // Example CodingKey
+                debugDescription: "Preview: An invalid value was provided for encoding."
+            )
+        ),
+        retryAction: {}
+    )
+}
+
+#Preview("httpErrorBadHTTPResponse") {
+    ErrorView(
+        error: HTTPError.badHTTPResponse,
+        retryAction: {})
+}
+
+#Preview("httpErrorBadStatusCode404") {
+    ErrorView(
+        error: HTTPError.badStatusCode(404),
+        retryAction: {})
+}
+
+#Preview("httpErrorBadStatusCode500") {
+    ErrorView(
+        error: HTTPError.badStatusCode(500),
+        retryAction: {})
+}
+
+// Helper CodingKey for DecodingError and EncodingError previews
+enum CodingKeys: String, CodingKey {
+    case someKey
+    case anotherKey
+}
+
 struct ErrorAlertModifier: ViewModifier {
     @Binding var error: Error?
     let tryAgainAction: (() -> Void)?
@@ -106,6 +168,8 @@ extension ErrorViewModel {
             self = ErrorViewModel(decodingError: decodingError)
         } else if let encodingError = error as? EncodingError {
             self = ErrorViewModel(encodingError: encodingError)
+        } else if let httpError = error as? HTTPError {
+            self = ErrorViewModel(httpError: httpError)
         } else {
             self = ErrorViewModel()
         }
@@ -193,11 +257,11 @@ extension ErrorViewModel {
 }
 
 extension ErrorViewModel {
-    init(clientError: ClientError) {
+    init(httpError: HTTPError) {
         let imageName = "exclamationmark.icloud"
         let description: LocalizedStringKey
 
-        switch clientError {
+        switch httpError {
         case .badHTTPResponse:
             description = "We received an unexpected response from the server. Please try again, and if the problem continues, let us know."
         

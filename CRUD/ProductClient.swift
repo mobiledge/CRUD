@@ -18,7 +18,7 @@ struct ProductClient {
 var count = 0
 
 extension ProductClient {
-    static func live(client: Client) -> ProductClient {
+    static func live(client: HTTPClient) -> ProductClient {
         let basePath = "products"
         
         return ProductClient(
