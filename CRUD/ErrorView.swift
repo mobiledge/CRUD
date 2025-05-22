@@ -95,6 +95,8 @@ enum CodingKeys: String, CodingKey {
     case anotherKey
 }
 
+
+// MARK: - ErrorAlertModifier
 struct ErrorAlertModifier: ViewModifier {
     @Binding var error: Error?
     let tryAgainAction: (() -> Void)?
@@ -106,40 +108,46 @@ struct ErrorAlertModifier: ViewModifier {
         )
     }
     
+    private var errorViewModel: ErrorViewModel {
+        guard let error = error else {
+            return ErrorViewModel()
+        }
+        return ErrorViewModel(error: error)
+    }
+    
     private var alertTitle: Text {
-        Text("Error")
+        Text(errorViewModel.title)
     }
     
     private var alertMessage: Text {
-        Text(error?.localizedDescription ?? "Something went wrong.")
+        Text(errorViewModel.description)
     }
     
-    private var primaryButton: Alert.Button {
-        if let tryAgainAction = tryAgainAction {
-            return .default(Text("Try Again"), action: tryAgainAction)
-        } else {
-            return .default(Text("OK"))
+    private var dismissButton: Alert.Button {
+        Alert.Button.cancel(Text("Dismiss"))
+    }
+    
+    private var tryAgainButton: Alert.Button? {
+        guard let tryAgainAction = tryAgainAction else {
+            return nil
         }
-    }
-    
-    private var secondaryButton: Alert.Button? {
-        tryAgainAction != nil ? .cancel(Text("Cancel")) : nil
+        return .default(Text("Try Again"), action: tryAgainAction)
     }
     
     func body(content: Content) -> some View {
         content.alert(isPresented: isPresenting) {
-            if let secondary = secondaryButton {
+            if let tryAgainButton = tryAgainButton {
                 return Alert(
                     title: alertTitle,
                     message: alertMessage,
-                    primaryButton: primaryButton,
-                    secondaryButton: secondary
+                    primaryButton: tryAgainButton,
+                    secondaryButton: dismissButton
                 )
             } else {
                 return Alert(
                     title: alertTitle,
                     message: alertMessage,
-                    dismissButton: primaryButton
+                    dismissButton: dismissButton
                 )
             }
         }
@@ -152,14 +160,34 @@ extension View {
     }
 }
 
+struct ErrorAlertPreviewContainer: View {
+    
+    @State var error: Error? = nil
+    
+    var body: some View {
+        Button("Show Error Alert") {
+            let err = URLError(.networkConnectionLost)
+            error = err
+        }
+        .errorAlert(
+            error: $error,
+            tryAgainAction: {
+                error = nil
+            }
+        )
+    }
+}
+
+#Preview("ErrorAlertModifier") {
+    ErrorAlertPreviewContainer()
+}
+
 // MARK: - ErrorViewModel
 struct ErrorViewModel {
     var title: LocalizedStringKey = "Something Went Wrong"
     var systemImageName: String = "exclamationmark.triangle"
     var description: LocalizedStringKey = "Something unexpected happened. Try again, or reach out if it keeps happening."
 }
-
-// MARK: - ErrorViewModel + Error & like
 extension ErrorViewModel {
     init(error: Error) {
         if let urlError = error as? URLError {
@@ -174,9 +202,7 @@ extension ErrorViewModel {
             self = ErrorViewModel()
         }
     }
-}
 
-extension ErrorViewModel {
     init(urlError: URLError) {
         let title: LocalizedStringKey
         let imageName: String
@@ -222,9 +248,7 @@ extension ErrorViewModel {
         }
         self.init(title: title, systemImageName: imageName, description: description)
     }
-}
 
-extension ErrorViewModel {
     init(decodingError: DecodingError) {
         let description: LocalizedStringKey
         switch decodingError {
@@ -241,9 +265,7 @@ extension ErrorViewModel {
         }
         self.init(description: description)
     }
-}
 
-extension ErrorViewModel {
     init(encodingError: EncodingError) {
         let description: LocalizedStringKey
         switch encodingError {
@@ -254,9 +276,7 @@ extension ErrorViewModel {
         }
         self.init(description: description)
     }
-}
 
-extension ErrorViewModel {
     init(httpError: HTTPError) {
         let imageName = "exclamationmark.icloud"
         let description: LocalizedStringKey
