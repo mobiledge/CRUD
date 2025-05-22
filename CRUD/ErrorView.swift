@@ -3,38 +3,25 @@ import SwiftUI
 struct ErrorView: View {
     typealias ReentryAction = () -> Void
     
-    let title: LocalizedStringKey
-    let systemImage: String
-    let description: LocalizedStringKey?
-    let retryAction: ReentryAction?
+    private let vm: ErrorViewModel
+    private let retryAction: ReentryAction?
     
-    init(
-        title: LocalizedStringKey = "Something went wrong",
-        systemImage: String = "exclamationmark.triangle",
-        description: LocalizedStringKey? = nil,
-        retryAction: (() -> Void)? = nil
-    ) {
-        self.title = title
-        self.systemImage = systemImage
-        self.description = description
+    init(vm: ErrorViewModel, retryAction: ReentryAction? = nil) {
+        self.vm = vm
         self.retryAction = retryAction
     }
     
-    init(error: Error, retryAction: ReentryAction?) {
-        self.init(
-            title: error.displayTitle,
-            systemImage: error.displaySystemImageName,
-            description: error.displayDescription,
-            retryAction: retryAction
-        )
+    init(error: Error, retryAction: ReentryAction? = nil) {
+        self.vm = ErrorViewModel(error: error)
+        self.retryAction = retryAction
     }
     
     var body: some View {
         ContentUnavailableView {
-            Label("Something went wrong", systemImage: "exclamationmark.triangle")
+            Label(vm.title, systemImage: vm.systemImageName)
         } description: {
             VStack(spacing: 8) {
-                Text(title)
+                Text(vm.description)
                     .multilineTextAlignment(.center)
                 if let retry = retryAction {
                     Button("Try Again", action: retry)
@@ -103,128 +90,43 @@ extension View {
     }
 }
 
-extension Error {
-    var displayTitle: LocalizedStringKey {
-        if let urlError = self as? URLError {
-            switch urlError.code {
-            case .notConnectedToInternet, .networkConnectionLost:
-                return "No Internet Connection"
-            default:
-                return "A Network Issue Occurred"
-            }
-        }
-        return "Something Went Wrong"
-    }
-    
-    var displaySystemImageName: String {
-        if let urlError = self as? URLError {
-            switch urlError.code {
-            case .notConnectedToInternet, .networkConnectionLost:
-                return "wifi.slash"
-            default:
-                return "exclamationmark.icloud"
-            }
-        }
-        return "exclamationmark.triangle"
-    }
-    
-    var displayDescription: LocalizedStringKey {
-        if let urlError = self as? URLError {
-            switch urlError.code {
-            case .notConnectedToInternet:
-                return "Looks like you're not connected to the internet. Check your connection and try again."
-            case .timedOut:
-                return "That took longer than expected. Give it another try in a moment."
-            case .cannotFindHost:
-                return "Having trouble reaching our servers. Check your connection and try again."
-            case .cannotConnectToHost:
-                return "Can't connect right now. We might be having some issues—try again in a bit."
-            case .networkConnectionLost:
-                return "Your connection dropped while we were loading. Please try again."
-            case .badURL, .unsupportedURL:
-                return "Something's wrong with this link. Let us know if you keep seeing this."
-            case .cancelled:
-                return "No worries, you cancelled that."
-            case .userCancelledAuthentication:
-                return "You cancelled signing in. No problem—try again whenever you're ready."
-            case .userAuthenticationRequired:
-                return "You'll need to sign in first."
-            case .secureConnectionFailed:
-                return "We're having trouble making a secure connection. Try again in a moment."
-            case .serverCertificateHasBadDate, .serverCertificateUntrusted,
-                    .serverCertificateHasUnknownRoot, .serverCertificateNotYetValid:
-                return "There's a security issue on our end. Try again later or let us know if it keeps happening."
-            case .cannotLoadFromNetwork, .dataNotAllowed:
-                return "Can't access the network right now. Check your settings and try again."
-            default:
-                return "Something went wrong with your connection. Please try again."
-            }
-        }
-        
-        if let decodingError = self as? DecodingError {
-            switch decodingError {
-            case .keyNotFound:
-                return "We didn't get all the info we needed. Please try again."
-            case .typeMismatch:
-                return "Something looks different than we expected. Please try again."
-            case .valueNotFound:
-                return "Some information seems to be missing. Please try again."
-            case .dataCorrupted:
-                return "The information got scrambled somehow. Please try again."
-            @unknown default:
-                return "We're having trouble understanding the response. Please try again."
-            }
-        }
-        
-        if let encodingError = self as? EncodingError {
-            switch encodingError {
-            case .invalidValue:
-                return "Something doesn't look right with what you entered. Double-check and try again."
-            @unknown default:
-                return "We're having trouble with your request. Please try again."
-            }
-        }
-        
-        return "Something unexpected happened. Try again, or reach out if it keeps happening."
-    }
-}
-
-struct UserFriendlyErrorDisplayInfo {
+// MARK: - ErrorViewModel
+struct ErrorViewModel {
     static let defaultDisplayTitle: LocalizedStringKey = "Something Went Wrong"
     static let defaultDisplaySystemImageName: String = "exclamationmark.triangle"
     static let defaultDisplayDescription: LocalizedStringKey = "Something unexpected happened. Try again, or reach out if it keeps happening."
     
-    let displayTitle: LocalizedStringKey
-    let displaySystemImageName: String
-    let displayDescription: LocalizedStringKey
+    let title: LocalizedStringKey
+    let systemImageName: String
+    let description: LocalizedStringKey
 
     init(
         displayTitle: LocalizedStringKey = Self.defaultDisplayTitle,
         displaySystemImageName: String = Self.defaultDisplaySystemImageName,
         displayDescription: LocalizedStringKey = Self.defaultDisplayDescription
     ) {
-        self.displayTitle = displayTitle
-        self.displaySystemImageName = displaySystemImageName
-        self.displayDescription = displayDescription
+        self.title = displayTitle
+        self.systemImageName = displaySystemImageName
+        self.description = displayDescription
     }
 }
 
-extension Error {
-    var userFriendlyDisplayInfo: UserFriendlyErrorDisplayInfo {
-        if let urlError = self as? URLError {
-            return UserFriendlyErrorDisplayInfo(urlError: urlError)
+// MARK: - ErrorViewModel + Error & like
+extension ErrorViewModel {
+    init(error: Error) {
+        if let urlError = error as? URLError {
+            self = ErrorViewModel(urlError: urlError)
+        } else if let decodingError = error as? DecodingError {
+            self = ErrorViewModel(decodingError: decodingError)
+        } else if let encodingError = error as? EncodingError {
+            self = ErrorViewModel(encodingError: encodingError)
+        } else {
+            self = ErrorViewModel()
         }
-        if let decodingError = self as? DecodingError {
-            return UserFriendlyErrorDisplayInfo(decodingError: decodingError)
-        }
-        if let encodingError = self as? EncodingError {
-            return UserFriendlyErrorDisplayInfo(encodingError: encodingError)
-        }
-        return UserFriendlyErrorDisplayInfo()
     }
 }
 
-extension UserFriendlyErrorDisplayInfo {
+extension ErrorViewModel {
     init(urlError: URLError) {
         let title: LocalizedStringKey
         let imageName: String
@@ -272,7 +174,7 @@ extension UserFriendlyErrorDisplayInfo {
     }
 }
 
-extension UserFriendlyErrorDisplayInfo {
+extension ErrorViewModel {
     init(decodingError: DecodingError) {
         let description: LocalizedStringKey
         switch decodingError {
@@ -291,7 +193,7 @@ extension UserFriendlyErrorDisplayInfo {
     }
 }
 
-extension UserFriendlyErrorDisplayInfo {
+extension ErrorViewModel {
     init(encodingError: EncodingError) {
         
         let description: LocalizedStringKey
