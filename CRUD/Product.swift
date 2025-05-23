@@ -1,20 +1,17 @@
 import Foundation
 
-// MARK: - Product Model
-struct Product: Codable, Identifiable, Equatable {
+struct Product: Codable, Identifiable {
     let id: Int
-    var title: String
-    
+    let name: String
+
+    // Mock data for testing and previews
     static let mockProducts: [Product] = [
-        Product(id: 1, title: "iPhone"),
-        Product(id: 2, title: "MacBook"),
-        Product(id: 3, title: "Headphones"),
-        Product(id: 4, title: "Coffee Maker")
+        Product(id: 1, name: "Awesome T-Shirt"),
+        Product(id: 2, name: "Stylish Mug"),
+        Product(id: 3, name: "Coding Book"),
+        Product(id: 4, name: "Wireless Headphones")
     ]
-    
-    static let mock = Product(id: 1, title: "iPhone")
-}
- 
-struct ProductListResponse: Decodable {
-    let products: [Product]
+
+    // Single mock product
+    static let mock = Product(id: 99, name: "Test Product")
 }

@@ -12,7 +12,7 @@ struct ContentView: View {
         ProductListView(
             vm: ProductListViewModel(
                 service: ProductService.live(
-                    server: .prod,
+                    server: .local,
                     session: .live()
                 )
             )

@@ -53,7 +53,7 @@ struct ProductListView: View {
     private var productListView: some View {
         List {
             ForEach(vm.products) { prod in
-                Text(prod.title)
+                Text(prod.name)
             }
         }
         .refreshable {

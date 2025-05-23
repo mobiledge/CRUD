@@ -30,6 +30,7 @@ struct HTTPServer {
     }
 
     static let prod = HTTPServer(staticString: "https://dummyjson.com/", description: "Production")
+    static let local = HTTPServer(staticString: "http://localhost:3000/", description: "Production")
     static let mock = HTTPServer(staticString: "https://mock.api/", description: "Mock")
 }
 
@@ -71,8 +72,7 @@ struct FetchAllProductsService {
         .init {
             let request = URLRequest(server: server, path: "products", method: .get)
             let data = try await session.dispatch(request: request)
-            let decoded = try JSONDecoder().decode(ProductListResponse.self, from: data)
-            return decoded.products
+            return try JSONDecoder().decode([Product].self, from: data)
         }
     }
 
@@ -254,8 +254,7 @@ struct ProductService {
             fetchAll: {
                 let request = URLRequest(server: server, path: "products", method: .get)
                 let data = try await session.dispatch(request: request)
-                let decoded = try JSONDecoder().decode(ProductListResponse.self, from: data)
-                return decoded.products
+                return try JSONDecoder().decode([Product].self, from: data)
             },
             fetchById: { id in
                 let request = URLRequest(server: server, path: "products/\(id)", method: .get)
