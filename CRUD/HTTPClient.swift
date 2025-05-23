@@ -1,15 +1,18 @@
 import Foundation
 
 // MARK: - Typealiases
+
 typealias HTTPPath = String
 typealias HTTPBody = Data
 
 // MARK: - HTTPMethod
+
 enum HTTPMethod: String {
     case get = "GET", post = "POST", put = "PUT", delete = "DELETE"
 }
 
-// MARK: - Server
+// MARK: - HTTPServer
+
 struct HTTPServer {
     let url: URL
     let description: String?
@@ -31,13 +34,14 @@ struct HTTPServer {
 }
 
 // MARK: - HTTPSession
+
 struct HTTPSession {
     private var dispatchRequest: (URLRequest) async throws -> Data
     
     func dispatch(request: URLRequest) async throws -> Data {
         try await dispatchRequest(request)
     }
-    
+
     static func live(session: URLSession = .shared) -> HTTPSession {
         HTTPSession { request in
             let (data, response) = try await session.data(for: request)
@@ -52,70 +56,142 @@ struct HTTPSession {
     }
 }
 
-// MARK: - Client Errors
+// MARK: - HTTPError
+
 enum HTTPError: Error {
     case badHTTPResponse
     case badStatusCode(Int)
 }
 
+// MARK: - URLRequest Extensions
 
 extension URLRequest {
-    init(server: HTTPServer,
-         path: HTTPPath,
-         method: HTTPMethod = .get,
-         headers: [String: String]? = nil,
-         body: HTTPBody? = nil) {
-        
+    init(
+        server: HTTPServer,
+        path: HTTPPath,
+        method: HTTPMethod = .get,
+        headers: [String: String]? = nil,
+        body: HTTPBody? = nil
+    ) {
         let fullURL = server.url.appending(path: path)
         self.init(url: fullURL)
-        
         self.httpMethod = method.rawValue
         self.httpBody = body
-        
-        headers?.forEach { key, value in
-            self.setValue(value, forHTTPHeaderField: key)
-        }
+        headers?.forEach { self.setValue($1, forHTTPHeaderField: $0) }
     }
-    
-    init(url: URL,
-         method: HTTPMethod = .get,
-         headers: [String: String]? = nil,
-         body: HTTPBody? = nil) {
-        
+
+    init(
+        url: URL,
+        method: HTTPMethod = .get,
+        headers: [String: String]? = nil,
+        body: HTTPBody? = nil
+    ) {
         self.init(url: url)
-        
         self.httpMethod = method.rawValue
         self.httpBody = body
-        
-        headers?.forEach { key, value in
-            self.setValue(value, forHTTPHeaderField: key)
-        }
+        headers?.forEach { self.setValue($1, forHTTPHeaderField: $0) }
     }
-    
-    static func get(server: HTTPServer,
-                    path: HTTPPath,
-                    headers: [String: String]? = nil) -> URLRequest {
-        return URLRequest(server: server, path: path, method: .get, headers: headers)
+
+    static func get(
+        server: HTTPServer,
+        path: HTTPPath,
+        headers: [String: String]? = nil
+    ) -> URLRequest {
+        URLRequest(server: server, path: path, method: .get, headers: headers)
     }
-    
-    static func post(server: HTTPServer,
-                     path: HTTPPath,
-                     headers: [String: String]? = nil,
-                     body: HTTPBody) -> URLRequest {
-        return URLRequest(server: server, path: path, method: .post, headers: headers, body: body)
+
+    static func post(
+        server: HTTPServer,
+        path: HTTPPath,
+        headers: [String: String]? = nil,
+        body: HTTPBody
+    ) -> URLRequest {
+        URLRequest(server: server, path: path, method: .post, headers: headers, body: body)
     }
-    
-    static func put(server: HTTPServer,
-                    path: HTTPPath,
-                    headers: [String: String]? = nil,
-                    body: HTTPBody) -> URLRequest {
-        return URLRequest(server: server, path: path, method: .put, headers: headers, body: body)
+
+    static func put(
+        server: HTTPServer,
+        path: HTTPPath,
+        headers: [String: String]? = nil,
+        body: HTTPBody
+    ) -> URLRequest {
+        URLRequest(server: server, path: path, method: .put, headers: headers, body: body)
     }
-    
-    static func delete(server: HTTPServer,
-                       path: HTTPPath,
-                       headers: [String: String]? = nil,
-                       body: HTTPBody? = nil) -> URLRequest {
-        return URLRequest(server: server, path: path, method: .delete, headers: headers, body: body)
+
+    static func delete(
+        server: HTTPServer,
+        path: HTTPPath,
+        headers: [String: String]? = nil,
+        body: HTTPBody? = nil
+    ) -> URLRequest {
+        URLRequest(server: server, path: path, method: .delete, headers: headers, body: body)
+    }
+}
+
+// MARK: - ProductClient
+
+struct ProductClient {
+    let fetchAll: () async throws -> [Product]
+    let fetchById: (_ id: Int) async throws -> Product
+    let create: (_ product: Product) async throws -> Product
+    let update: (_ product: Product) async throws -> Product
+    let delete: (_ id: Int) async throws -> Void
+
+    static func live(server: HTTPServer, session: HTTPSession) -> ProductClient {
+        ProductClient(
+            fetchAll: {
+                let request = URLRequest.get(server: server, path: "products")
+                let data = try await session.dispatch(request: request)
+                let decoded = try JSONDecoder().decode(ProductListResponse.self, from: data)
+                return decoded.products
+            },
+            fetchById: { id in
+                let request = URLRequest.get(server: server, path: "products/\(id)")
+                let data = try await session.dispatch(request: request)
+                return try JSONDecoder().decode(Product.self, from: data)
+            },
+            create: { product in
+                let body = try JSONEncoder().encode(product)
+                let request = URLRequest.post(
+                    server: server,
+                    path: "products/add",
+                    headers: ["Content-Type": "application/json"],
+                    body: body
+                )
+                let data = try await session.dispatch(request: request)
+                return try JSONDecoder().decode(Product.self, from: data)
+            },
+            update: { product in
+                let body = try JSONEncoder().encode(product)
+                let request = URLRequest.put(
+                    server: server,
+                    path: "products/\(product.id)",
+                    headers: ["Content-Type": "application/json"],
+                    body: body
+                )
+                let data = try await session.dispatch(request: request)
+                return try JSONDecoder().decode(Product.self, from: data)
+            },
+            delete: { id in
+                let request = URLRequest.delete(server: server, path: "products/\(id)")
+                _ = try await session.dispatch(request: request)
+            }
+        )
+    }
+
+    static func mock(
+        fetchAll: @escaping () async throws -> [Product] = { [Product.mock] },
+        fetchById: @escaping (Int) async throws -> Product = { _ in Product.mock },
+        create: @escaping (Product) async throws -> Product = { $0 },
+        update: @escaping (Product) async throws -> Product = { $0 },
+        delete: @escaping (Int) async throws -> Void = { _ in }
+    ) -> ProductClient {
+        ProductClient(
+            fetchAll: fetchAll,
+            fetchById: fetchById,
+            create: create,
+            update: update,
+            delete: delete
+        )
     }
 }
