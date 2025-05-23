@@ -108,7 +108,7 @@ struct ProductService {
                 let body = try JSONEncoder().encode(product)
                 let request = URLRequest(
                     server: server,
-                    path: "products/add",
+                    path: "products",
                     method: .post,
                     headers: ["Content-Type": "application/json"],
                     body: body

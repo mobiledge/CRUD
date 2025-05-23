@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXFileReference section */
+		C144AC862DE138E400091FDE /* HTTPClientTests.playground */ = {isa = PBXFileReference; lastKnownFileType = file.playground; path = HTTPClientTests.playground; sourceTree = "<group>"; xcLanguageSpecificationIdentifier = xcode.lang.swift; };
 		C1B050782DDD50CE00798800 /* CRUD.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = CRUD.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
@@ -32,6 +33,7 @@
 		C1B0506F2DDD50CE00798800 = {
 			isa = PBXGroup;
 			children = (
+				C144AC862DE138E400091FDE /* HTTPClientTests.playground */,
 				C1B0507A2DDD50CE00798800 /* CRUD */,
 				C1B050792DDD50CE00798800 /* Products */,
 			);

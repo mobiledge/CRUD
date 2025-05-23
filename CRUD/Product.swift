@@ -15,3 +15,9 @@ struct Product: Codable, Identifiable {
     // Single mock product
     static let mock = Product(id: 99, name: "Test Product")
 }
+
+extension Product: CustomDebugStringConvertible {
+    var debugDescription: String {
+        return "Product(id: \(id), name: \"\(name)\")"
+    }
+}
