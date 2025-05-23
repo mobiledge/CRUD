@@ -11,7 +11,10 @@ struct ContentView: View {
     var body: some View {
         ProductListView(
             vm: ProductListViewModel(
-                client: ProductClient.live(client: HTTPClient.live(server: HTTPServer.prod))
+                client: ProductClient.live(
+                    server: .prod,
+                    session: .live()
+                )
             )
         )
     }
