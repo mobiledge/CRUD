@@ -65,7 +65,7 @@ struct ProductListView: View {
 }
 
 #Preview("Success") {
-    ProductListView(vm: ProductListViewModel(service: .mockHappyPath))
+    ProductListView(vm: ProductListViewModel(service: .mock()))
 }
 
 #Preview("Loading") {
@@ -99,9 +99,9 @@ final class ProductListViewModel {
     var products = [Product]()
     var error: Error? = nil
     
-    private let service: FetchAllProductsService
+    private let service: ProductService
     
-    init(service: FetchAllProductsService) {
+    init(service: ProductService) {
         self.service = service
     }
     

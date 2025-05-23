@@ -238,3 +238,89 @@ extension URLRequest {
         headers?.forEach { self.setValue($1, forHTTPHeaderField: $0) }
     }
 }
+
+
+// MARK: - ProductService
+
+struct ProductService {
+    let fetchAll: () async throws -> [Product]
+    let fetchById: (_ id: Int) async throws -> Product
+    let create: (_ product: Product) async throws -> Product
+    let update: (_ product: Product) async throws -> Product
+    let delete: (_ id: Int) async throws -> Void
+
+    static func live(server: HTTPServer, session: HTTPSession) -> ProductService {
+        ProductService(
+            fetchAll: {
+                let request = URLRequest(server: server, path: "products", method: .get)
+                let data = try await session.dispatch(request: request)
+                let decoded = try JSONDecoder().decode(ProductListResponse.self, from: data)
+                return decoded.products
+            },
+            fetchById: { id in
+                let request = URLRequest(server: server, path: "products/\(id)", method: .get)
+                let data = try await session.dispatch(request: request)
+                return try JSONDecoder().decode(Product.self, from: data)
+            },
+            create: { product in
+                let body = try JSONEncoder().encode(product)
+                let request = URLRequest(
+                    server: server,
+                    path: "products/add",
+                    method: .post,
+                    headers: ["Content-Type": "application/json"],
+                    body: body
+                )
+                let data = try await session.dispatch(request: request)
+                return try JSONDecoder().decode(Product.self, from: data)
+            },
+            update: { product in
+                let body = try JSONEncoder().encode(product)
+                let request = URLRequest(
+                    server: server,
+                    path: "products/\(product.id)",
+                    method: .put,
+                    headers: ["Content-Type": "application/json"],
+                    body: body
+                )
+                let data = try await session.dispatch(request: request)
+                return try JSONDecoder().decode(Product.self, from: data)
+            },
+            delete: { id in
+                let request = URLRequest(server: server, path: "products/\(id)", method: .delete)
+                _ = try await session.dispatch(request: request)
+            }
+        )
+    }
+
+    static func mock(
+        fetchAll: @escaping () async throws -> [Product] = { Product.mockProducts },
+        fetchById: @escaping (Int) async throws -> Product = { id in
+            guard let product = Product.mockProducts.first(where: { $0.id == id }) else {
+                throw NSError(domain: "NotFound", code: 404)
+            }
+            return product
+        },
+        create: @escaping (Product) async throws -> Product = { $0 },
+        update: @escaping (Product) async throws -> Product = { $0 },
+        delete: @escaping (Int) async throws -> Void = { _ in }
+    ) -> ProductService {
+        ProductService(
+            fetchAll: fetchAll,
+            fetchById: fetchById,
+            create: create,
+            update: update,
+            delete: delete
+        )
+    }
+
+    static func mockError(_ error: Error) -> ProductService {
+        mock(
+            fetchAll: { throw error },
+            fetchById: { _ in throw error },
+            create: { _ in throw error },
+            update: { _ in throw error },
+            delete: { _ in throw error }
+        )
+    }
+}
