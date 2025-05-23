@@ -64,55 +64,64 @@ struct ProductListView: View {
     }
 }
 
-
 #Preview("Success") {
     ProductListView(
         vm: ProductListViewModel(
-            client: ProductClient.mock(
-                fetchAll: {
+            service: .mock(fetchAll: {
                     Product.mockProducts
-                }
-            )
+                })
         )
     )
 }
 
-#Preview("Loading") {
-    ProductListView(
-        vm: ProductListViewModel(
-            client: ProductClient.mock(
-                fetchAll: {
-                    try await Task.sleep(for: .seconds(5))
-                    return Product.mockProducts
-                }
-            )
-        )
-    )
-}
+//#Preview("Success") {
+//    ProductListView(
+//        vm: ProductListViewModel(
+//            client: ProductClient.mock(
+//                fetchAll: {
+//                    Product.mockProducts
+//                }
+//            )
+//        )
+//    )
+//}
 
-#Preview("Error") {
-    ProductListView(
-        vm: ProductListViewModel(
-            client: ProductClient.mock(
-                fetchAll: {
-                    throw URLError(.notConnectedToInternet)
-                }
-            )
-        )
-    )
-}
-
-#Preview("Empty") {
-    ProductListView(
-        vm: ProductListViewModel(
-            client: ProductClient.mock(
-                fetchAll: {
-                    []
-                }
-            )
-        )
-    )
-}
+//#Preview("Loading") {
+//    ProductListView(
+//        vm: ProductListViewModel(
+//            client: ProductClient.mock(
+//                fetchAll: {
+//                    try await Task.sleep(for: .seconds(5))
+//                    return Product.mockProducts
+//                }
+//            )
+//        )
+//    )
+//}
+//
+//#Preview("Error") {
+//    ProductListView(
+//        vm: ProductListViewModel(
+//            client: ProductClient.mock(
+//                fetchAll: {
+//                    throw URLError(.notConnectedToInternet)
+//                }
+//            )
+//        )
+//    )
+//}
+//
+//#Preview("Empty") {
+//    ProductListView(
+//        vm: ProductListViewModel(
+//            client: ProductClient.mock(
+//                fetchAll: {
+//                    []
+//                }
+//            )
+//        )
+//    )
+//}
 
 @MainActor
 @Observable
@@ -122,16 +131,16 @@ final class ProductListViewModel {
     var products = [Product]()
     var error: Error? = nil
     
-    private let client: ProductClient
+    private let service: FetchAllProductsService
     
-    init(client: ProductClient) {
-        self.client = client
+    init(service: FetchAllProductsService) {
+        self.service = service
     }
     
     func fetchProducts() async {
         isLoading = true
         do {
-            products = try await client.fetchAll()
+            products = try await service.fetchAll()
             error = nil
         } catch {
             self.error = error
@@ -139,3 +148,30 @@ final class ProductListViewModel {
         isLoading = false
     }
 }
+
+
+//@MainActor
+//@Observable
+//final class ProductListViewModel {
+//    
+//    var isLoading = false
+//    var products = [Product]()
+//    var error: Error? = nil
+//    
+//    private let client: ProductClient
+//    
+//    init(client: ProductClient) {
+//        self.client = client
+//    }
+//    
+//    func fetchProducts() async {
+//        isLoading = true
+//        do {
+//            products = try await client.fetchAll()
+//            error = nil
+//        } catch {
+//            self.error = error
+//        }
+//        isLoading = false
+//    }
+//}

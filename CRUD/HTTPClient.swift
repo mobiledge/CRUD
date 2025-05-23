@@ -138,44 +138,13 @@ struct ProductClient {
     let delete: (_ id: Int) async throws -> Void
 
     static func live(server: HTTPServer, session: HTTPSession) -> ProductClient {
-        ProductClient(
-            fetchAll: {
-                let request = URLRequest.get(server: server, path: "products")
-                let data = try await session.dispatch(request: request)
-                let decoded = try JSONDecoder().decode(ProductListResponse.self, from: data)
-                return decoded.products
-            },
-            fetchById: { id in
-                let request = URLRequest.get(server: server, path: "products/\(id)")
-                let data = try await session.dispatch(request: request)
-                return try JSONDecoder().decode(Product.self, from: data)
-            },
-            create: { product in
-                let body = try JSONEncoder().encode(product)
-                let request = URLRequest.post(
-                    server: server,
-                    path: "products/add",
-                    headers: ["Content-Type": "application/json"],
-                    body: body
-                )
-                let data = try await session.dispatch(request: request)
-                return try JSONDecoder().decode(Product.self, from: data)
-            },
-            update: { product in
-                let body = try JSONEncoder().encode(product)
-                let request = URLRequest.put(
-                    server: server,
-                    path: "products/\(product.id)",
-                    headers: ["Content-Type": "application/json"],
-                    body: body
-                )
-                let data = try await session.dispatch(request: request)
-                return try JSONDecoder().decode(Product.self, from: data)
-            },
-            delete: { id in
-                let request = URLRequest.delete(server: server, path: "products/\(id)")
-                _ = try await session.dispatch(request: request)
-            }
+        let liveClient = LiveProductClient(server: server, session: session)
+        return ProductClient(
+            fetchAll: liveClient.fetchAll,
+            fetchById: liveClient.fetchById,
+            create: liveClient.create,
+            update: liveClient.update,
+            delete: liveClient.delete
         )
     }
 
@@ -193,5 +162,145 @@ struct ProductClient {
             update: update,
             delete: delete
         )
+    }
+}
+
+private struct LiveProductClient {
+    let server: HTTPServer
+    let session: HTTPSession
+
+    func fetchAll() async throws -> [Product] {
+        let request = URLRequest.get(server: server, path: "products")
+        let data = try await session.dispatch(request: request)
+        let decoded = try JSONDecoder().decode(ProductListResponse.self, from: data)
+        return decoded.products
+    }
+
+    func fetchById(_ id: Int) async throws -> Product {
+        let request = URLRequest.get(server: server, path: "products/\(id)")
+        let data = try await session.dispatch(request: request)
+        return try JSONDecoder().decode(Product.self, from: data)
+    }
+
+    func create(_ product: Product) async throws -> Product {
+        let body = try JSONEncoder().encode(product)
+        let request = URLRequest.post(
+            server: server,
+            path: "products/add",
+            headers: ["Content-Type": "application/json"],
+            body: body
+        )
+        let data = try await session.dispatch(request: request)
+        return try JSONDecoder().decode(Product.self, from: data)
+    }
+
+    func update(_ product: Product) async throws -> Product {
+        let body = try JSONEncoder().encode(product)
+        let request = URLRequest.put(
+            server: server,
+            path: "products/\(product.id)",
+            headers: ["Content-Type": "application/json"],
+            body: body
+        )
+        let data = try await session.dispatch(request: request)
+        return try JSONDecoder().decode(Product.self, from: data)
+    }
+
+    func delete(_ id: Int) async throws {
+        let request = URLRequest.delete(server: server, path: "products/\(id)")
+        _ = try await session.dispatch(request: request)
+    }
+}
+
+
+struct FetchAllProductsService {
+    let fetchAll: () async throws -> [Product]
+    
+    static func live(server: HTTPServer, session: HTTPSession) -> FetchAllProductsService {
+        .init {
+            let request = URLRequest.get(server: server, path: "products")
+            let data = try await session.dispatch(request: request)
+            let decoded = try JSONDecoder().decode(ProductListResponse.self, from: data)
+            return decoded.products
+        }
+    }
+    
+    static func mock(fetchAll: @escaping () async throws -> [Product]) -> FetchAllProductsService {
+        FetchAllProductsService(fetchAll: fetchAll)
+    }
+}
+
+struct FetchProductByIdService {
+    let fetchById: (_ id: Int) async throws -> Product
+
+    static func live(server: HTTPServer, session: HTTPSession) -> FetchProductByIdService {
+        .init { id in
+            let request = URLRequest.get(server: server, path: "products/\(id)")
+            let data = try await session.dispatch(request: request)
+            return try JSONDecoder().decode(Product.self, from: data)
+        }
+    }
+
+    static func mock(fetchById: @escaping (Int) async throws -> Product) -> FetchProductByIdService {
+        FetchProductByIdService(fetchById: fetchById)
+    }
+}
+
+struct CreateProductService {
+    let create: (_ product: Product) async throws -> Product
+
+    static func live(server: HTTPServer, session: HTTPSession) -> CreateProductService {
+        .init { product in
+            let body = try JSONEncoder().encode(product)
+            let request = URLRequest.post(
+                server: server,
+                path: "products/add",
+                headers: ["Content-Type": "application/json"],
+                body: body
+            )
+            let data = try await session.dispatch(request: request)
+            return try JSONDecoder().decode(Product.self, from: data)
+        }
+    }
+
+    static func mock(create: @escaping (Product) async throws -> Product) -> CreateProductService {
+        CreateProductService(create: create)
+    }
+}
+
+struct UpdateProductService {
+    let update: (_ product: Product) async throws -> Product
+
+    static func live(server: HTTPServer, session: HTTPSession) -> UpdateProductService {
+        .init { product in
+            let body = try JSONEncoder().encode(product)
+            let request = URLRequest.put(
+                server: server,
+                path: "products/\(product.id)",
+                headers: ["Content-Type": "application/json"],
+                body: body
+            )
+            let data = try await session.dispatch(request: request)
+            return try JSONDecoder().decode(Product.self, from: data)
+        }
+    }
+
+    static func mock(update: @escaping (Product) async throws -> Product) -> UpdateProductService {
+        UpdateProductService(update: update)
+    }
+}
+
+struct DeleteProductService {
+    let delete: (_ id: Int) async throws -> Void
+
+    static func live(server: HTTPServer, session: HTTPSession) -> DeleteProductService {
+        .init { id in
+            let request = URLRequest.delete(server: server, path: "products/\(id)")
+            _ = try await session.dispatch(request: request)
+        }
+    }
+
+    static func mock(delete: @escaping (Int) async throws -> Void) -> DeleteProductService {
+        DeleteProductService(delete: delete)
     }
 }

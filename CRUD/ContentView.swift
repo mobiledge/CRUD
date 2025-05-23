@@ -11,7 +11,7 @@ struct ContentView: View {
     var body: some View {
         ProductListView(
             vm: ProductListViewModel(
-                client: ProductClient.live(
+                service: FetchAllProductsService.live(
                     server: .prod,
                     session: .live()
                 )
