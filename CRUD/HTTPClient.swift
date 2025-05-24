@@ -17,21 +17,21 @@ enum HTTPMethod: String {
 struct HTTPServer {
     let url: URL
     let description: String?
-    
+
     init(url: URL, description: String? = nil) {
         self.url = url
         self.description = description
     }
-    
+
     init(staticString: StaticString, description: String? = nil) {
         guard let url = URL(string: "\(staticString)") else {
             preconditionFailure("Invalid static URL: \(staticString)")
         }
         self.init(url: url, description: description)
     }
-    
+
     static let prod = HTTPServer(staticString: "https://dummyjson.com/", description: "Production")
-    static let local = HTTPServer(staticString: "http://localhost:3000/", description: "Production")
+    static let local = HTTPServer(staticString: "http://localhost:3000/", description: "Local Development") // Changed description for clarity
     static let mock = HTTPServer(staticString: "https://mock.api/", description: "Mock")
 }
 
@@ -39,42 +39,42 @@ struct HTTPServer {
 
 struct HTTPSession {
     var dispatch: (URLRequest) async throws -> Data
-    
+
     private static let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "HTTPSession", category: "networking")
-    
+
     static func live(session: URLSession = .shared) -> HTTPSession {
         HTTPSession { request in
             logger.info("Making HTTP request to: \(request.url?.absoluteString ?? "unknown URL")")
-            
+
             do {
                 let (data, response) = try await session.data(for: request)
-                
+
                 guard let httpResponse = response as? HTTPURLResponse else {
                     logger.error("Invalid HTTP response received")
                     throw HTTPError.badHTTPResponse
                 }
-                
+
                 guard (200..<300).contains(httpResponse.statusCode) else {
                     logger.error("HTTP request failed with status code: \(httpResponse.statusCode)")
                     throw HTTPError.badStatusCode(httpResponse.statusCode)
                 }
-                
+
                 logger.info("HTTP request successful, received \(data.count) bytes")
                 return data
-                
+
             } catch {
                 logger.error("HTTP request failed with error: \(error.localizedDescription)")
-                throw error
+                throw error // Re-throw the original error to preserve context
             }
         }
     }
-    
+
     static func mockError(_ error: Error) -> HTTPSession {
         HTTPSession { _ in
             throw error
         }
     }
-    
+
     static func mockSuccess(data: Data) -> HTTPSession {
         HTTPSession { _ in
             return data
@@ -84,7 +84,7 @@ struct HTTPSession {
 
 // MARK: - HTTPError
 
-enum HTTPError: Error {
+enum HTTPError: Error, Equatable { // Equatable for easier testing
     case badHTTPResponse
     case badStatusCode(Int)
 }
@@ -99,7 +99,10 @@ extension URLRequest {
         headers: [String: String]? = nil,
         body: HTTPBody? = nil
     ) {
-        let fullURL = server.url.appending(path: path)
+        let fullURL = server.url.appending(path: path) // In Swift 5.7+ path: is deprecated, use appendingPathComponent
+        // For broader compatibility or older Swift versions, appendingPathComponent might be better:
+        // let fullURL = server.url.appendingPathComponent(path)
+
         self.init(url: fullURL)
         self.httpMethod = method.rawValue
         self.httpBody = body
@@ -107,21 +110,19 @@ extension URLRequest {
     }
 }
 
-
-// MARK: - ProductService
-
 struct ProductService {
     let fetchAll: () async throws -> [Product]
     let fetchById: (_ id: Int) async throws -> Product
     let create: (_ product: Product) async throws -> Product
     let update: (_ product: Product) async throws -> Product
     let delete: (_ id: Int) async throws -> Void
-    
+
     static func live(server: HTTPServer, session: HTTPSession) -> ProductService {
         ProductService(
             fetchAll: {
                 let request = URLRequest(server: server, path: "products", method: .get)
                 let data = try await session.dispatch(request)
+                // Consider adding a specific JSONDecoder instance if non-standard decoding is needed
                 return try JSONDecoder().decode([Product].self, from: data)
             },
             fetchById: { id in
@@ -145,7 +146,7 @@ struct ProductService {
                 let body = try JSONEncoder().encode(product)
                 let request = URLRequest(
                     server: server,
-                    path: "products/\(product.id)",
+                    path: "products/\(product.id)", // Assuming Product has an 'id'
                     method: .put,
                     headers: ["Content-Type": "application/json"],
                     body: body
@@ -155,17 +156,18 @@ struct ProductService {
             },
             delete: { id in
                 let request = URLRequest(server: server, path: "products/\(id)", method: .delete)
-                _ = try await session.dispatch(request)
+                _ = try await session.dispatch(request) // No data expected or decoded for delete
             }
         )
     }
-    
+
     static func mock(
         fetchAll: @escaping () async throws -> [Product] = { Product.mockProducts },
         fetchById: @escaping (Int) async throws -> Product = { id in
             guard let product = Product.mockProducts.first(where: { $0.id == id }) else {
-        throw NSError(domain: "NotFound", code: 404)
-    }
+                // Using a more specific error type or HTTPError.badStatusCode(404) might be better
+                throw NSError(domain: "ProductServiceMockError", code: 404, userInfo: [NSLocalizedDescriptionKey: "Product not found"])
+            }
             return product
         },
         create: @escaping (Product) async throws -> Product = { $0 },
@@ -180,7 +182,7 @@ struct ProductService {
             delete: delete
         )
     }
-    
+
     static func mockError(_ error: Error) -> ProductService {
         mock(
             fetchAll: { throw error },
