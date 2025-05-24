@@ -55,6 +55,18 @@ struct HTTPSession {
             return data
         }
     }
+    
+    static func mockError(_ error: Error) -> HTTPSession {
+        HTTPSession { _ in
+            throw error
+        }
+    }
+
+    static func mockSuccess(data: Data) -> HTTPSession {
+        HTTPSession { _ in
+            return data
+        }
+    }
 }
 
 // MARK: - HTTPError

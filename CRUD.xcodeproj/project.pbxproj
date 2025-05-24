@@ -6,12 +6,28 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXContainerItemProxy section */
+		C144AC8F2DE145DC00091FDE /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = C1B050702DDD50CE00798800 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = C1B050772DDD50CE00798800;
+			remoteInfo = CRUD;
+		};
+/* End PBXContainerItemProxy section */
+
 /* Begin PBXFileReference section */
 		C144AC862DE138E400091FDE /* HTTPClientTests.playground */ = {isa = PBXFileReference; lastKnownFileType = file.playground; path = HTTPClientTests.playground; sourceTree = "<group>"; xcLanguageSpecificationIdentifier = xcode.lang.swift; };
+		C144AC8B2DE145DC00091FDE /* CRUDTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = CRUDTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		C1B050782DDD50CE00798800 /* CRUD.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = CRUD.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
+		C144AC8C2DE145DC00091FDE /* CRUDTests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = CRUDTests;
+			sourceTree = "<group>";
+		};
 		C1B0507A2DDD50CE00798800 /* CRUD */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			path = CRUD;
@@ -20,6 +36,13 @@
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
+		C144AC882DE145DC00091FDE /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		C1B050752DDD50CE00798800 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
@@ -35,6 +58,7 @@
 			children = (
 				C144AC862DE138E400091FDE /* HTTPClientTests.playground */,
 				C1B0507A2DDD50CE00798800 /* CRUD */,
+				C144AC8C2DE145DC00091FDE /* CRUDTests */,
 				C1B050792DDD50CE00798800 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -43,6 +67,7 @@
 			isa = PBXGroup;
 			children = (
 				C1B050782DDD50CE00798800 /* CRUD.app */,
+				C144AC8B2DE145DC00091FDE /* CRUDTests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -50,6 +75,29 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
+		C144AC8A2DE145DC00091FDE /* CRUDTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = C144AC912DE145DC00091FDE /* Build configuration list for PBXNativeTarget "CRUDTests" */;
+			buildPhases = (
+				C144AC872DE145DC00091FDE /* Sources */,
+				C144AC882DE145DC00091FDE /* Frameworks */,
+				C144AC892DE145DC00091FDE /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				C144AC902DE145DC00091FDE /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				C144AC8C2DE145DC00091FDE /* CRUDTests */,
+			);
+			name = CRUDTests;
+			packageProductDependencies = (
+			);
+			productName = CRUDTests;
+			productReference = C144AC8B2DE145DC00091FDE /* CRUDTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
 		C1B050772DDD50CE00798800 /* CRUD */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = C1B050832DDD50CF00798800 /* Build configuration list for PBXNativeTarget "CRUD" */;
@@ -82,6 +130,10 @@
 				LastSwiftUpdateCheck = 1630;
 				LastUpgradeCheck = 1630;
 				TargetAttributes = {
+					C144AC8A2DE145DC00091FDE = {
+						CreatedOnToolsVersion = 16.3;
+						TestTargetID = C1B050772DDD50CE00798800;
+					};
 					C1B050772DDD50CE00798800 = {
 						CreatedOnToolsVersion = 16.3;
 					};
@@ -102,11 +154,19 @@
 			projectRoot = "";
 			targets = (
 				C1B050772DDD50CE00798800 /* CRUD */,
+				C144AC8A2DE145DC00091FDE /* CRUDTests */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
+		C144AC892DE145DC00091FDE /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		C1B050762DDD50CE00798800 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -117,6 +177,13 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
+		C144AC872DE145DC00091FDE /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		C1B050742DDD50CE00798800 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -126,7 +193,49 @@
 		};
 /* End PBXSourcesBuildPhase section */
 
+/* Begin PBXTargetDependency section */
+		C144AC902DE145DC00091FDE /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = C1B050772DDD50CE00798800 /* CRUD */;
+			targetProxy = C144AC8F2DE145DC00091FDE /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
 /* Begin XCBuildConfiguration section */
+		C144AC922DE145DC00091FDE /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = io.mobiledge.CRUDTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/CRUD.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/CRUD";
+			};
+			name = Debug;
+		};
+		C144AC932DE145DC00091FDE /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = io.mobiledge.CRUDTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/CRUD.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/CRUD";
+			};
+			name = Release;
+		};
 		C1B050812DDD50CF00798800 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -303,6 +412,15 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
+		C144AC912DE145DC00091FDE /* Build configuration list for PBXNativeTarget "CRUDTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				C144AC922DE145DC00091FDE /* Debug */,
+				C144AC932DE145DC00091FDE /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
 		C1B050732DDD50CE00798800 /* Build configuration list for PBXProject "CRUD" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
