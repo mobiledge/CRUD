@@ -1,4 +1,5 @@
 import Foundation
+import os.log
 
 // MARK: - Typealiases
 
@@ -16,19 +17,19 @@ enum HTTPMethod: String {
 struct HTTPServer {
     let url: URL
     let description: String?
-
+    
     init(url: URL, description: String? = nil) {
         self.url = url
         self.description = description
     }
-
+    
     init(staticString: StaticString, description: String? = nil) {
         guard let url = URL(string: "\(staticString)") else {
             preconditionFailure("Invalid static URL: \(staticString)")
         }
         self.init(url: url, description: description)
     }
-
+    
     static let prod = HTTPServer(staticString: "https://dummyjson.com/", description: "Production")
     static let local = HTTPServer(staticString: "http://localhost:3000/", description: "Production")
     static let mock = HTTPServer(staticString: "https://mock.api/", description: "Mock")
@@ -38,17 +39,33 @@ struct HTTPServer {
 
 struct HTTPSession {
     var dispatch: (URLRequest) async throws -> Data
-
+    
+    private static let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "HTTPSession", category: "networking")
+    
     static func live(session: URLSession = .shared) -> HTTPSession {
         HTTPSession { request in
-            let (data, response) = try await session.data(for: request)
-            guard let httpResponse = response as? HTTPURLResponse else {
-                throw HTTPError.badHTTPResponse
+            logger.info("Making HTTP request to: \(request.url?.absoluteString ?? "unknown URL")")
+            
+            do {
+                let (data, response) = try await session.data(for: request)
+                
+                guard let httpResponse = response as? HTTPURLResponse else {
+                    logger.error("Invalid HTTP response received")
+                    throw HTTPError.badHTTPResponse
+                }
+                
+                guard (200..<300).contains(httpResponse.statusCode) else {
+                    logger.error("HTTP request failed with status code: \(httpResponse.statusCode)")
+                    throw HTTPError.badStatusCode(httpResponse.statusCode)
+                }
+                
+                logger.info("HTTP request successful, received \(data.count) bytes")
+                return data
+                
+            } catch {
+                logger.error("HTTP request failed with error: \(error.localizedDescription)")
+                throw error
             }
-            guard (200..<300).contains(httpResponse.statusCode) else {
-                throw HTTPError.badStatusCode(httpResponse.statusCode)
-            }
-            return data
         }
     }
     
@@ -57,7 +74,7 @@ struct HTTPSession {
             throw error
         }
     }
-
+    
     static func mockSuccess(data: Data) -> HTTPSession {
         HTTPSession { _ in
             return data
@@ -99,7 +116,7 @@ struct ProductService {
     let create: (_ product: Product) async throws -> Product
     let update: (_ product: Product) async throws -> Product
     let delete: (_ id: Int) async throws -> Void
-
+    
     static func live(server: HTTPServer, session: HTTPSession) -> ProductService {
         ProductService(
             fetchAll: {
@@ -142,13 +159,13 @@ struct ProductService {
             }
         )
     }
-
+    
     static func mock(
         fetchAll: @escaping () async throws -> [Product] = { Product.mockProducts },
         fetchById: @escaping (Int) async throws -> Product = { id in
             guard let product = Product.mockProducts.first(where: { $0.id == id }) else {
-                throw NSError(domain: "NotFound", code: 404)
-            }
+        throw NSError(domain: "NotFound", code: 404)
+    }
             return product
         },
         create: @escaping (Product) async throws -> Product = { $0 },
@@ -163,7 +180,7 @@ struct ProductService {
             delete: delete
         )
     }
-
+    
     static func mockError(_ error: Error) -> ProductService {
         mock(
             fetchAll: { throw error },
