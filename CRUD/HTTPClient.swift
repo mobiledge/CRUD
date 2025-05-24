@@ -37,11 +37,7 @@ struct HTTPServer {
 // MARK: - HTTPSession
 
 struct HTTPSession {
-    private var dispatchRequest: (URLRequest) async throws -> Data
-    
-    func dispatch(request: URLRequest) async throws -> Data {
-        try await dispatchRequest(request)
-    }
+    var dispatch: (URLRequest) async throws -> Data
 
     static func live(session: URLSession = .shared) -> HTTPSession {
         HTTPSession { request in
@@ -108,12 +104,12 @@ struct ProductService {
         ProductService(
             fetchAll: {
                 let request = URLRequest(server: server, path: "products", method: .get)
-                let data = try await session.dispatch(request: request)
+                let data = try await session.dispatch(request)
                 return try JSONDecoder().decode([Product].self, from: data)
             },
             fetchById: { id in
                 let request = URLRequest(server: server, path: "products/\(id)", method: .get)
-                let data = try await session.dispatch(request: request)
+                let data = try await session.dispatch(request)
                 return try JSONDecoder().decode(Product.self, from: data)
             },
             create: { product in
@@ -125,7 +121,7 @@ struct ProductService {
                     headers: ["Content-Type": "application/json"],
                     body: body
                 )
-                let data = try await session.dispatch(request: request)
+                let data = try await session.dispatch(request)
                 return try JSONDecoder().decode(Product.self, from: data)
             },
             update: { product in
@@ -137,12 +133,12 @@ struct ProductService {
                     headers: ["Content-Type": "application/json"],
                     body: body
                 )
-                let data = try await session.dispatch(request: request)
+                let data = try await session.dispatch(request)
                 return try JSONDecoder().decode(Product.self, from: data)
             },
             delete: { id in
                 let request = URLRequest(server: server, path: "products/\(id)", method: .delete)
-                _ = try await session.dispatch(request: request)
+                _ = try await session.dispatch(request)
             }
         )
     }
