@@ -9,14 +9,16 @@ import SwiftUI
 
 struct ContentView: View {
     var body: some View {
-        ProductListView(
-            vm: ProductListViewModel(
-                service: ProductService.live(
-                    server: .local,
-                    session: .live()
+        NavigationStack {
+            ProductListView(
+                vm: ProductListViewModel(
+                    service: ProductService.live(
+                        server: .local,
+                        session: .live()
+                    )
                 )
             )
-        )
+        }
     }
 }
 

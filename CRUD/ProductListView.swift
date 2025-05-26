@@ -28,6 +28,7 @@ struct ProductListView: View {
                 }
             }
         )
+        .navigationTitle("Products")
     }
     
     private var loadingView: some View {
@@ -52,8 +53,10 @@ struct ProductListView: View {
     
     private var productListView: some View {
         List {
-            ForEach(vm.products) { prod in
-                Text(prod.name)
+            ForEach(vm.products) { product in
+                NavigationLink(destination: ProductDetailView(product: product)) {
+                    Text(product.name)
+                }
             }
         }
         .refreshable {
@@ -65,30 +68,38 @@ struct ProductListView: View {
 }
 
 #Preview("Success") {
-    ProductListView(vm: ProductListViewModel(service: .mock()))
+    NavigationStack {
+        ProductListView(vm: ProductListViewModel(service: .mock()))
+    }
 }
 
 #Preview("Loading") {
-    ProductListView(
-        vm: ProductListViewModel(service: .mock(fetchAll: {
-            try await Task.sleep(for: .seconds(2))
-            return []
-        }))
-    )
+    NavigationStack {
+        ProductListView(
+            vm: ProductListViewModel(service: .mock(fetchAll: {
+                try await Task.sleep(for: .seconds(2))
+                return []
+            }))
+        )
+    }
 }
 
 #Preview("Error") {
-    ProductListView(
-        vm: ProductListViewModel(
-            service: .mockError(URLError(.notConnectedToInternet))
+    NavigationStack {
+        ProductListView(
+            vm: ProductListViewModel(
+                service: .mockError(URLError(.notConnectedToInternet))
+            )
         )
-    )
+    }
 }
 
 #Preview("Empty") {
-    ProductListView(vm: ProductListViewModel(service: .mock(fetchAll: {
-        []
-    })))
+    NavigationStack {
+        ProductListView(vm: ProductListViewModel(service: .mock(fetchAll: {
+            []
+        })))
+    }
 }
 
 @MainActor

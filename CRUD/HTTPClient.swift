@@ -110,6 +110,8 @@ extension URLRequest {
     }
 }
 
+// MARK: - ProductService
+
 struct ProductService {
     let fetchAll: () async throws -> [Product]
     let fetchById: (_ id: Int) async throws -> Product
@@ -122,7 +124,6 @@ struct ProductService {
             fetchAll: {
                 let request = URLRequest(server: server, path: "products", method: .get)
                 let data = try await session.dispatch(request)
-                // Consider adding a specific JSONDecoder instance if non-standard decoding is needed
                 return try JSONDecoder().decode([Product].self, from: data)
             },
             fetchById: { id in
