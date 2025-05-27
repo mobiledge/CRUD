@@ -1,24 +1,25 @@
 import SwiftUI
 
 struct ProductEditView: View {
-    @State var viewModel: ProductEditViewModel
+    @State var viewModel: ProductEditViewModel // Changed to @StateObject
     @Environment(\.dismiss) private var dismiss
     @State private var showingDiscardAlert = false
+    @State private var showingSaveErrorAlert = false // For displaying save errors
 
     var body: some View {
         Form {
-            Section("Product Name") {
-                TextField("Enter product name", text: $viewModel.nameValue)
+            Section(viewModel.nameCaption) { // Use caption from ViewModel
+                TextField("Enter \(viewModel.nameCaption.lowercased())", text: $viewModel.nameValue)
             }
 
-            Section("Description") {
-                TextField("Enter product description",
+            Section(viewModel.descriptionCaption) { // Use caption from ViewModel
+                TextField("Enter \(viewModel.descriptionCaption.lowercased())",
                           text: $viewModel.descriptionValue,
                           axis: .vertical)
                 .lineLimit(3...6)
             }
 
-            Section("Price") {
+            Section(viewModel.priceCaption) { // Use caption from ViewModel
                 TextField("Enter price (e.g., $19.99)", text: $viewModel.priceValue)
                     .keyboardType(.decimalPad)
             }
@@ -40,7 +41,11 @@ struct ProductEditView: View {
                 Button("Save") {
                     Task {
                         await viewModel.saveChanges()
-                        dismiss()
+                        if viewModel.errorMessage == nil { // Check for error
+                            dismiss() // Dismiss only if save was successful
+                        } else {
+                            showingSaveErrorAlert = true // Show error alert
+                        }
                     }
                 }
                 .fontWeight(.semibold)
@@ -54,6 +59,11 @@ struct ProductEditView: View {
             Button("Keep Editing", role: .cancel) { }
         } message: {
             Text("You have unsaved changes. Are you sure you want to discard them?")
+        }
+        .alert("Error Saving Product", isPresented: $showingSaveErrorAlert) { // Alert for save errors
+            Button("OK", role: .cancel) { }
+        } message: {
+            Text(viewModel.errorMessage ?? "An unknown error occurred.")
         }
     }
 }
@@ -80,6 +90,9 @@ struct ProductEditView: View {
 @MainActor
 @Observable
 final class ProductEditViewModel {
+    
+    var errorMessage: String?
+    
     var nameValue: String
     var descriptionValue: String
     var priceValue: String
@@ -102,39 +115,37 @@ final class ProductEditViewModel {
         self.priceValue = product.price ?? ""
     }
 
-    // MARK: - Sanitized Values
-
-    private var nameValueSanitized: String {
-        nameValue.trimmingCharacters(in: .whitespacesAndNewlines)
+    // MARK: - Edited Product with Inlined Sanitization
+    
+    private var editedProduct: Product {
+        let sanitizedName = nameValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        let sanitizedDescription = descriptionValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        let sanitizedPrice = priceValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        
+        return Product(
+            id: originalProduct.id,
+            name: sanitizedName,
+            description: sanitizedDescription.isEmpty ? nil : sanitizedDescription,
+            price: sanitizedPrice.isEmpty ? nil : sanitizedPrice
+        )
     }
-
-    private var descriptionValueSanitized: String {
-        descriptionValue.trimmingCharacters(in: .whitespacesAndNewlines)
-    }
-
-    private var priceValueSanitized: String {
-        priceValue.trimmingCharacters(in: .whitespacesAndNewlines)
-    }
-
+    
     // MARK: - Change Detection
-
+    
     var hasChanges: Bool {
-        nameValueSanitized != originalProduct.name ||
-        descriptionValueSanitized != (originalProduct.description ?? "") ||
-        priceValueSanitized != (originalProduct.price ?? "")
+        editedProduct.name != originalProduct.name ||
+        editedProduct.description != originalProduct.description ||
+        editedProduct.price != originalProduct.price
     }
 
     // MARK: - Save
 
     func saveChanges() async {
-        product.name = nameValueSanitized
-        product.description = descriptionValueSanitized.isEmpty ? nil : descriptionValueSanitized
-        product.price = priceValueSanitized.isEmpty ? nil : priceValueSanitized
-
+        self.errorMessage = nil
         do {
-            try await productRepository.update(product)
+            try await productRepository.update(editedProduct)
         } catch {
-            print("Failed to save product: \(error)")
+            self.errorMessage = "Could not save product: \(error.localizedDescription)"
         }
     }
 }
