@@ -131,7 +131,9 @@ import Observation
 @MainActor
 @Observable
 final class ProductDetailViewModel {
-    var product: Product?
+    var product: Product? {
+        repository.products.first(where: { $0.id == productId })
+    }
     var isLoading: Bool = false
     var errorMessage: String?
     var showingEditView: Bool = false
@@ -157,8 +159,7 @@ final class ProductDetailViewModel {
         self.isLoading = true
         self.errorMessage = nil
         do {
-            let fetchedProduct = try await repository.fetchById(productId)
-            self.product = fetchedProduct
+            try await repository.fetchById(productId)
         } catch {
             self.errorMessage = "Failed to load product: \(error.localizedDescription)"
         }

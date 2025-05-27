@@ -132,8 +132,7 @@ final class ProductEditViewModel {
         product.price = priceValueSanitized.isEmpty ? nil : priceValueSanitized
 
         do {
-            product = try await productRepository.update(product)
-            originalProduct = product
+            try await productRepository.update(product)
         } catch {
             print("Failed to save product: \(error)")
         }
