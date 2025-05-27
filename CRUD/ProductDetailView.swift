@@ -1,94 +1,167 @@
 import SwiftUI
 
 struct ProductDetailView: View {
-    @State private var product: Product
-    @State private var showingEditView = false
-    
-    init(product: Product) {
-        self._product = State(initialValue: product)
-    }
-    
+    @State var viewModel: ProductDetailViewModel
+
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 24) {
-                // Product Name Section
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("Product Name")
-                        .font(.caption)
-                        .fontWeight(.semibold)
-                        .foregroundColor(.secondary)
-                        .textCase(.uppercase)
-                    
-                    Text(product.name)
-                        .font(.title)
-                        .fontWeight(.bold)
-                        .foregroundColor(.primary)
-                }
-                
-                // Description Section
-                if let description = product.description, !description.isEmpty {
-                    Divider()
-                    
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("Description")
-                            .font(.caption)
-                            .fontWeight(.semibold)
-                            .foregroundColor(.secondary)
-                            .textCase(.uppercase)
-                        
-                        Text(description)
-                            .font(.body)
-                            .foregroundColor(.primary)
-                            .lineLimit(nil)
-                    }
-                }
-                
-                // Price Section
-                if let price = product.price, !price.isEmpty {
-                    Divider()
-                    
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("Price")
-                            .font(.caption)
-                            .fontWeight(.semibold)
-                            .foregroundColor(.secondary)
-                            .textCase(.uppercase)
-                        
-                        Text(price)
-                            .font(.title2)
-                            .fontWeight(.bold)
-                            .foregroundColor(.green)
-                    }
-                }
-                
-                Spacer(minLength: 20)
-            }
-            .padding()
-        }
-        .navigationTitle("Product Details")
-        .navigationBarTitleDisplayMode(.inline)
-                .toolbar {
-                    ToolbarItem(placement: .navigationBarTrailing) {
-                        Button("Edit") {
-                            showingEditView = true
+        Group {
+            if viewModel.isLoading {
+                ProgressView("Loading product...")
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+            } else if let errorMessage = viewModel.errorMessage {
+                VStack(spacing: 16) {
+                    Text("Error")
+                        .font(.headline)
+                    Text(errorMessage)
+                        .multilineTextAlignment(.center)
+                        .foregroundColor(.red)
+                    Button("Retry") {
+                        Task {
+                            await viewModel.loadProduct()
                         }
                     }
                 }
-                .sheet(isPresented: $showingEditView) {
-                    NavigationView {
-                        ProductEditView(product: $product)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+            } else {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 24) {
+                        // Product Name
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text(viewModel.nameCaption)
+                                .font(.caption)
+                                .fontWeight(.semibold)
+                                .foregroundColor(.secondary)
+                                .textCase(.uppercase)
+                            
+                            Text(viewModel.nameValue)
+                                .font(.title)
+                                .fontWeight(.bold)
+                                .foregroundColor(.primary)
+                        }
+
+                        // Description
+                        if let description = viewModel.descriptionValue, !description.isEmpty {
+                            Divider()
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text(viewModel.descriptionCaption)
+                                    .font(.caption)
+                                    .fontWeight(.semibold)
+                                    .foregroundColor(.secondary)
+                                    .textCase(.uppercase)
+                                
+                                Text(description)
+                                    .font(.body)
+                                    .foregroundColor(.primary)
+                            }
+                        }
+
+                        // Price
+                        if let price = viewModel.priceValue, !price.isEmpty {
+                            Divider()
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text(viewModel.priceCaption)
+                                    .font(.caption)
+                                    .fontWeight(.semibold)
+                                    .foregroundColor(.secondary)
+                                    .textCase(.uppercase)
+                                
+                                Text(price)
+                                    .font(.title2)
+                                    .fontWeight(.bold)
+                                    .foregroundColor(.green)
+                            }
+                        }
+
+                        Spacer(minLength: 20)
                     }
+                    .padding()
                 }
+            }
+        }
+        .task {
+            await viewModel.loadProduct()
+        }
+        .navigationTitle("Product Details")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .navigationBarTrailing) {
+                Button("Edit") {
+                    viewModel.showingEditView = true
+                }
+                .disabled(viewModel.product == nil)
+            }
+        }
+        .sheet(isPresented: $viewModel.showingEditView) {
+            if let product = viewModel.product {
+                NavigationView {
+                    ProductEditView(
+                        viewModel: ProductEditViewModel(
+                            product: product,
+                            productRepository: viewModel.repository
+                        )
+                    )
+                }
+            }
+        }
     }
 }
 
-#Preview("Standard Layout") {
-    NavigationView {
-        ProductDetailView(product: Product(
-            id: 12345,
-            name: "Premium Wireless Headphones",
-            description: "High-quality wireless headphones with noise cancellation, premium sound quality, and long-lasting battery life. Perfect for music lovers and professionals.",
-            price: "$299.99"
-        ))
+
+#Preview("ProductDetailView") {
+    NavigationStack {
+        ProductDetailView(
+            viewModel: ProductDetailViewModel(
+                productId: 1,
+                repository: ProductRepository(
+                    productNetworkService: ProductNetworkService(
+                        networkService: NetworkService(
+                            server: .local,
+                            session: .live()
+                        )
+                    )
+                )
+            )
+        )
+    }
+}
+
+
+import Observation
+
+@MainActor
+@Observable
+final class ProductDetailViewModel {
+    var product: Product?
+    var isLoading: Bool = false
+    var errorMessage: String?
+    var showingEditView: Bool = false
+
+    let repository: ProductRepository
+    private let productId: Int
+
+    var nameCaption: String { "Product Name" }
+    var nameValue: String { product?.name ?? "-" }
+
+    var descriptionCaption: String { "Description" }
+    var descriptionValue: String? { product?.description }
+
+    var priceCaption: String { "Price" }
+    var priceValue: String? { product?.price }
+
+    init(productId: Int, repository: ProductRepository) {
+        self.productId = productId
+        self.repository = repository
+    }
+
+    func loadProduct() async {
+        self.isLoading = true
+        self.errorMessage = nil
+        do {
+            let fetchedProduct = try await repository.fetchById(productId)
+            self.product = fetchedProduct
+        } catch {
+            self.errorMessage = "Failed to load product: \(error.localizedDescription)"
+        }
+        self.isLoading = false
     }
 }

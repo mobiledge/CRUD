@@ -1,29 +1,25 @@
 import SwiftUI
 
 struct ProductEditView: View {
-    @Binding var product: Product
+    @State var viewModel: ProductEditViewModel
     @Environment(\.dismiss) private var dismiss
-    
-    @State private var editedName: String = ""
-    @State private var editedDescription: String = ""
-    @State private var editedPrice: String = ""
     @State private var showingDiscardAlert = false
-    
+
     var body: some View {
         Form {
             Section("Product Name") {
-                TextField("Enter product name", text: $editedName)
+                TextField("Enter product name", text: $viewModel.nameValue)
             }
-            
+
             Section("Description") {
                 TextField("Enter product description",
-                          text: $editedDescription,
+                          text: $viewModel.descriptionValue,
                           axis: .vertical)
                 .lineLimit(3...6)
             }
-            
+
             Section("Price") {
-                TextField("Enter price (e.g., $19.99)", text: $editedPrice)
+                TextField("Enter price (e.g., $19.99)", text: $viewModel.priceValue)
                     .keyboardType(.decimalPad)
             }
         }
@@ -32,25 +28,24 @@ struct ProductEditView: View {
         .toolbar {
             ToolbarItem(placement: .navigationBarLeading) {
                 Button("Cancel") {
-                    if hasChanges {
+                    if viewModel.hasChanges {
                         showingDiscardAlert = true
                     } else {
                         dismiss()
                     }
                 }
             }
-            
+
             ToolbarItem(placement: .navigationBarTrailing) {
                 Button("Save") {
-                    saveChanges()
-                    dismiss()
+                    Task {
+                        await viewModel.saveChanges()
+                        dismiss()
+                    }
                 }
                 .fontWeight(.semibold)
-                .disabled(editedName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                .disabled(viewModel.nameValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             }
-        }
-        .onAppear {
-            setupInitialValues()
         }
         .alert("Discard Changes?", isPresented: $showingDiscardAlert) {
             Button("Discard", role: .destructive) {
@@ -61,37 +56,86 @@ struct ProductEditView: View {
             Text("You have unsaved changes. Are you sure you want to discard them?")
         }
     }
-    
-    private func setupInitialValues() {
-        editedName = product.name
-        editedDescription = product.description ?? ""
-        editedPrice = product.price ?? ""
-    }
-    
-    private func saveChanges() {
-        product.name = editedName.trimmingCharacters(in: .whitespacesAndNewlines)
-        product.description = editedDescription.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : editedDescription.trimmingCharacters(in: .whitespacesAndNewlines)
-        product.price = editedPrice.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : editedPrice.trimmingCharacters(in: .whitespacesAndNewlines)
-    }
-    
-    private var hasChanges: Bool {
-        let trimmedName = editedName.trimmingCharacters(in: .whitespacesAndNewlines)
-        let trimmedDescription = editedDescription.trimmingCharacters(in: .whitespacesAndNewlines)
-        let trimmedPrice = editedPrice.trimmingCharacters(in: .whitespacesAndNewlines)
-        
-        return trimmedName != product.name ||
-        trimmedDescription != (product.description ?? "") ||
-        trimmedPrice != (product.price ?? "")
+}
+
+#Preview("ProductEditView") {
+    NavigationStack {
+        ProductEditView(
+            viewModel: ProductEditViewModel(
+                product: Product.mock,
+                productRepository: ProductRepository(
+                    productNetworkService: ProductNetworkService(
+                        networkService: NetworkService(
+                            server: .local,
+                            session: .live()
+                        )
+                    )
+                )
+            )
+        )
     }
 }
 
-#Preview("Product Edit View") {
-    NavigationView {
-        ProductEditView(product: .constant(Product(
-            id: 12345,
-            name: "Premium Wireless Headphones",
-            description: "High-quality wireless headphones with noise cancellation, premium sound quality, and long-lasting battery life. Perfect for music lovers and professionals.",
-            price: "$299.99"
-        )))
+
+@MainActor
+@Observable
+final class ProductEditViewModel {
+    var nameValue: String
+    var descriptionValue: String
+    var priceValue: String
+
+    let nameCaption = "Product Name"
+    let descriptionCaption = "Description"
+    let priceCaption = "Price"
+
+    private var originalProduct: Product
+    private(set) var product: Product
+    private let productRepository: ProductRepository
+
+    init(product: Product, productRepository: ProductRepository) {
+        self.product = product
+        self.originalProduct = product
+        self.productRepository = productRepository
+
+        self.nameValue = product.name
+        self.descriptionValue = product.description ?? ""
+        self.priceValue = product.price ?? ""
+    }
+
+    // MARK: - Sanitized Values
+
+    private var nameValueSanitized: String {
+        nameValue.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private var descriptionValueSanitized: String {
+        descriptionValue.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private var priceValueSanitized: String {
+        priceValue.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    // MARK: - Change Detection
+
+    var hasChanges: Bool {
+        nameValueSanitized != originalProduct.name ||
+        descriptionValueSanitized != (originalProduct.description ?? "") ||
+        priceValueSanitized != (originalProduct.price ?? "")
+    }
+
+    // MARK: - Save
+
+    func saveChanges() async {
+        product.name = nameValueSanitized
+        product.description = descriptionValueSanitized.isEmpty ? nil : descriptionValueSanitized
+        product.price = priceValueSanitized.isEmpty ? nil : priceValueSanitized
+
+        do {
+            product = try await productRepository.update(product)
+            originalProduct = product
+        } catch {
+            print("Failed to save product: \(error)")
+        }
     }
 }

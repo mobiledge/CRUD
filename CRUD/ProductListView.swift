@@ -16,7 +16,16 @@ struct ProductListView: View {
                 }
             } else {
                 List(viewModel.products) { product in
-                    Text(product.name)
+                    NavigationLink(
+                        product.name,
+                        destination: {
+                            ProductDetailView(
+                                viewModel: ProductDetailViewModel(
+                                    productId: product.id,
+                                    repository: viewModel.repository
+                                )
+                            )
+                    })
                 }
                 .refreshable {
                     await viewModel.fetchProducts()
@@ -53,7 +62,7 @@ struct ProductListView: View {
 class ProductListViewModel {
     var isLoading = false
     var error: Error?
-    private let repository: ProductRepository
+    let repository: ProductRepository
     
     var products: [Product] {
         repository.products
