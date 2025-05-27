@@ -1,129 +1,78 @@
 import SwiftUI
 
 struct ProductListView: View {
-    @State var vm: ProductListViewModel
-    
-    init(vm: ProductListViewModel) {
-        self.vm = vm
-    }
+    var viewModel: ProductListViewModel
+    @State var isPresented = false
     
     var body: some View {
         Group {
-            if vm.products.isEmpty && vm.isLoading {
-                loadingView
-            } else if vm.products.isEmpty {
-                emptyView
-            } else {
-                productListView
-            }
-        }
-        .task {
-            await vm.fetchProducts()
-        }
-        .errorAlert(
-            error: $vm.error,
-            tryAgainAction: {
-                Task {
-                    await vm.fetchProducts()
+             if viewModel.products.isEmpty {
+                if viewModel.isLoading {
+                    ProgressView("Loading products...")
+                } else if let error = viewModel.error {
+                    Text(error.localizedDescription)
+                } else {
+                    Text("No products found at the moment.")
                 }
-            }
-        )
-        .navigationTitle("Products")
-    }
-    
-    private var loadingView: some View {
-        ProgressView("Loading Products...")
-    }
-    
-    private var emptyView: some View {
-        ContentUnavailableView(
-            "No Products",
-            systemImage: "shippingbox",
-            description: Text("Try adding new items.")
-        )
-    }
-    
-    private func errorView(for error: Error) -> some View {
-        ErrorView(error: error) {
-            Task {
-                await vm.fetchProducts()
-            }
-        }
-    }
-    
-    private var productListView: some View {
-        List {
-            ForEach(vm.products) { product in
-                NavigationLink(destination: ProductDetailView(product: product)) {
+            } else {
+                List(viewModel.products) { product in
                     Text(product.name)
                 }
+                .refreshable {
+                    await viewModel.fetchProducts()
+                }
             }
         }
-        .refreshable {
-            Task {
-                await vm.fetchProducts()
-            }
+        .navigationTitle("Products")
+        .task {
+            await viewModel.fetchProducts()
         }
     }
 }
 
-#Preview("Success") {
-    NavigationStack {
-        ProductListView(vm: ProductListViewModel(service: .mock()))
-    }
-}
-
-#Preview("Loading") {
+#Preview {
     NavigationStack {
         ProductListView(
-            vm: ProductListViewModel(service: .mock(fetchAll: {
-                try await Task.sleep(for: .seconds(2))
-                return []
-            }))
-        )
-    }
-}
-
-#Preview("Error") {
-    NavigationStack {
-        ProductListView(
-            vm: ProductListViewModel(
-                service: .mockError(URLError(.notConnectedToInternet))
+            viewModel: ProductListViewModel(
+                repository: ProductRepository(
+                    productNetworkService: ProductNetworkService(
+                        networkService: NetworkService(
+                            server: .local,
+                            session: .live()
+                        )
+                    )
+                )
             )
         )
     }
 }
 
-#Preview("Empty") {
-    NavigationStack {
-        ProductListView(vm: ProductListViewModel(service: .mock(fetchAll: {
-            []
-        })))
-    }
-}
-
+// MARK: - ProductListViewModel
 @MainActor
 @Observable
-final class ProductListViewModel {
-    
+class ProductListViewModel {
     var isLoading = false
-    var products = [Product]()
-    var error: Error? = nil
+    var error: Error?
+    private let repository: ProductRepository
     
-    private let service: ProductService
+    var products: [Product] {
+        repository.products
+    }
     
-    init(service: ProductService) {
-        self.service = service
+    init(repository: ProductRepository) {
+        self.repository = repository
     }
     
     func fetchProducts() async {
         isLoading = true
+        error = nil
+        
         do {
-            products = try await service.fetchAll()
-            error = nil
+            try await repository.fetchAll()
         } catch {
             self.error = error
         }
+        
         isLoading = false
     }
 }
