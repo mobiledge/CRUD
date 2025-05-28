@@ -31,7 +31,7 @@ struct HTTPServer {
     }
     
     static let prod = HTTPServer(staticString: "https://dummyjson.com/", description: "Production")
-    static let local = HTTPServer(staticString: "http://localhost:3000/", description: "Local Development") // Changed description for clarity
+    static let local = HTTPServer(staticString: "http://localhost:3000/", description: "Local Development")
     static let mock = HTTPServer(staticString: "https://mock.api/", description: "Mock")
 }
 
@@ -111,6 +111,7 @@ extension URLRequest {
 }
 
 // MARK: - NetworkService
+
 actor NetworkService {
     let server: HTTPServer
     let session: HTTPSession
@@ -160,6 +161,7 @@ actor NetworkService {
 }
 
 // MARK: - ProductNetworkService
+
 protocol ProductNetworkService {
     func fetchAll() async throws -> [Product]
     func fetchById(_ id: Int) async throws -> Product
@@ -177,6 +179,8 @@ extension ProductNetworkService {
         MockProductNetworkService()
     }
 }
+
+// MARK: - LiveProductNetworkService
 
 actor LiveProductNetworkService: ProductNetworkService {
     let networkService: NetworkService
@@ -236,7 +240,9 @@ actor LiveProductNetworkService: ProductNetworkService {
     }
 }
 
-struct MockProductNetworkService: ProductNetworkService {
+// MARK: - MockProductNetworkService
+
+class MockProductNetworkService: ProductNetworkService {
 
     typealias FetchAllHandler = () async throws -> [Product]
     typealias FetchByIdHandler = (_ id: Int) async throws -> Product
@@ -249,6 +255,8 @@ struct MockProductNetworkService: ProductNetworkService {
     var createHandler: CreateHandler = { $0 }
     var updateHandler: UpdateHandler = { $0 }
     var deleteHandler: DeleteHandler = { _ in }
+    
+    init() {}
     
     func fetchAll() async throws -> [Product] {
         try await fetchAllHandler()
@@ -273,6 +281,7 @@ struct MockProductNetworkService: ProductNetworkService {
 
 // MARK: - ProductRepository
 
+
 @MainActor
 @Observable
 class ProductRepository {
@@ -294,7 +303,7 @@ class ProductRepository {
 
     @discardableResult
     func fetchAll() async throws -> [Product] {
-        try await Task.sleep(for: .seconds(2)) // Simulate network delay
+//        try await Task.sleep(for: .seconds(2)) // Simulate network delay
         let fetchedProducts = try await productNetworkService.fetchAll()
         self.products = fetchedProducts
         return fetchedProducts
