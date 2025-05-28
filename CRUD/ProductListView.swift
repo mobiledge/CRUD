@@ -44,7 +44,7 @@ struct ProductListView: View {
         ProductListView(
             viewModel: ProductListViewModel(
                 repository: ProductRepository(
-                    productNetworkService: ProductNetworkService(
+                    productNetworkService: LiveProductNetworkService(
                         networkService: NetworkService(
                             server: .local,
                             session: .live()

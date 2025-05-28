@@ -12,7 +12,7 @@ struct ContentView: View {
         NavigationStack {
             ProductListView(viewModel: ProductListViewModel(
                     repository: ProductRepository(
-                        productNetworkService: ProductNetworkService(
+                        productNetworkService: LiveProductNetworkService(
                             networkService: NetworkService(
                                 server: .local,
                                 session: .live()

@@ -117,3 +117,6 @@ extension Product {
         return try Product.encoder.encode(instances)
     }
 }
+
+// Needed for tests
+extension Product : Equatable {}

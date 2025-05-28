@@ -160,7 +160,25 @@ actor NetworkService {
 }
 
 // MARK: - ProductNetworkService
-actor ProductNetworkService {
+protocol ProductNetworkService {
+    func fetchAll() async throws -> [Product]
+    func fetchById(_ id: Int) async throws -> Product
+    func create(_ product: Product) async throws -> Product
+    func update(_ product: Product) async throws -> Product
+    func delete(_ id: Int) async throws -> Void
+}
+
+extension ProductNetworkService {
+    static func live(networkService: NetworkService) -> LiveProductNetworkService {
+        LiveProductNetworkService(networkService: networkService)
+    }
+    
+    static var mock: MockProductNetworkService {
+        MockProductNetworkService()
+    }
+}
+
+actor LiveProductNetworkService: ProductNetworkService {
     let networkService: NetworkService
     
     init(networkService: NetworkService) {
@@ -218,6 +236,41 @@ actor ProductNetworkService {
     }
 }
 
+struct MockProductNetworkService: ProductNetworkService {
+
+    typealias FetchAllHandler = () async throws -> [Product]
+    typealias FetchByIdHandler = (_ id: Int) async throws -> Product
+    typealias CreateHandler = (_ product: Product) async throws -> Product
+    typealias UpdateHandler = (_ product: Product) async throws -> Product
+    typealias DeleteHandler = (_ id: Int) async throws -> Void
+    
+    var fetchAllHandler: FetchAllHandler = { Product.mockArray }
+    var fetchByIdHandler: FetchByIdHandler = { _ in Product.mockValue }
+    var createHandler: CreateHandler = { $0 }
+    var updateHandler: UpdateHandler = { $0 }
+    var deleteHandler: DeleteHandler = { _ in }
+    
+    func fetchAll() async throws -> [Product] {
+        try await fetchAllHandler()
+    }
+    
+    func fetchById(_ id: Int) async throws -> Product {
+        try await fetchByIdHandler(id)
+    }
+    
+    func create(_ product: Product) async throws -> Product {
+        try await createHandler(product)
+    }
+    
+    func update(_ product: Product) async throws -> Product {
+        try await updateHandler(product)
+    }
+    
+    func delete(_ id: Int) async throws {
+        try await deleteHandler(id)
+    }
+}
+
 // MARK: - ProductRepository
 @MainActor
 @Observable
@@ -226,13 +279,13 @@ class ProductRepository {
     
     private let productNetworkService: ProductNetworkService
     
-    init(productNetworkService: ProductNetworkService) {
+    init(productNetworkService: any ProductNetworkService) {
         self.productNetworkService = productNetworkService
     }
     
     convenience init(server: HTTPServer = .prod, session: HTTPSession = .live()) {
         let networkService = NetworkService(server: server, session: session)
-        let productNetworkService = ProductNetworkService(networkService: networkService)
+        let productNetworkService = LiveProductNetworkService(networkService: networkService)
         self.init(productNetworkService: productNetworkService)
     }
     

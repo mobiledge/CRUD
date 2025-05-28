@@ -113,7 +113,7 @@ struct ProductDetailView: View {
             viewModel: ProductDetailViewModel(
                 productId: 1,
                 repository: ProductRepository(
-                    productNetworkService: ProductNetworkService(
+                    productNetworkService: LiveProductNetworkService(
                         networkService: NetworkService(
                             server: .local,
                             session: .live()
