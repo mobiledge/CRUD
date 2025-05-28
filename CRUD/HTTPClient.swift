@@ -171,22 +171,18 @@ actor ProductNetworkService {
         let request = await networkService.makeRequest(path: "products")
         let response = try await networkService.sendRequest(request)
         try await networkService.validateResponse(response)
-        
-        let products = try JSONDecoder().decode([Product].self, from: response.0)
-        return products
+        return try Product.array(from: response.0)
     }
     
     func fetchById(_ id: Int) async throws -> Product {
         let request = await networkService.makeRequest(path: "products/\(id)")
         let response = try await networkService.sendRequest(request)
         try await networkService.validateResponse(response)
-        
-        let product = try JSONDecoder().decode(Product.self, from: response.0)
-        return product
+        return try Product(jsonData: response.0)
     }
     
     func create(_ product: Product) async throws -> Product {
-        let jsonData = try JSONEncoder().encode(product)
+        let jsonData = try product.toJSONData()
         let request = await networkService.makeRequest(
             path: "products/add",
             method: .post,
@@ -195,13 +191,11 @@ actor ProductNetworkService {
         
         let response = try await networkService.sendRequest(request)
         try await networkService.validateResponse(response)
-        
-        let createdProduct = try JSONDecoder().decode(Product.self, from: response.0)
-        return createdProduct
+        return try Product(jsonData: response.0)
     }
     
     func update(_ product: Product) async throws -> Product {
-        let jsonData = try JSONEncoder().encode(product)
+        let jsonData = try product.toJSONData()
         let request = await networkService.makeRequest(
             path: "products/\(product.id)",
             method: .put,
@@ -210,9 +204,7 @@ actor ProductNetworkService {
         
         let response = try await networkService.sendRequest(request)
         try await networkService.validateResponse(response)
-        
-        let updatedProduct = try JSONDecoder().decode(Product.self, from: response.0)
-        return updatedProduct
+        return try Product(jsonData: response.0)
     }
     
     func delete(_ id: Int) async throws -> Void {

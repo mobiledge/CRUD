@@ -5,8 +5,10 @@ struct Product: Codable, Identifiable {
     var name: String
     var description: String?
     var price: String?
-    
-    static let mockProducts: [Product] = [
+}
+
+extension Product {
+    static let mockArray: [Product] = [
         Product(
             id: 1,
             name: "Bluetooth Headphones",
@@ -69,7 +71,7 @@ struct Product: Codable, Identifiable {
         )
     ]
     
-    static let mock = Product(
+    static let mockValue = Product(
         id: 1,
         name: "Bluetooth Headphones",
         description: "Wireless over-ear headphones with noise cancellation.",
@@ -80,5 +82,38 @@ struct Product: Codable, Identifiable {
 extension Product: CustomDebugStringConvertible {
     var debugDescription: String {
         return "Product(id: \(id), name: \"\(name)\")"
+    }
+}
+
+extension Product {
+    
+    static var decoder: JSONDecoder {
+        let decoder = JSONDecoder()
+        decoder.keyDecodingStrategy = .convertFromSnakeCase
+        decoder.dateDecodingStrategy = .iso8601
+        return decoder
+    }
+
+    static var encoder: JSONEncoder {
+        let encoder = JSONEncoder()
+        encoder.keyEncodingStrategy = .convertToSnakeCase
+        encoder.dateEncodingStrategy = .iso8601
+        return encoder
+    }
+
+    init(jsonData: Data) throws {
+        self = try Product.decoder.decode(Product.self, from: jsonData)
+    }
+
+    func toJSONData() throws -> Data {
+        return try Product.encoder.encode(self)
+    }
+
+    static func array(from jsonData: Data) throws -> [Product] {
+        return try Product.decoder.decode([Product].self, from: jsonData)
+    }
+
+    static func toJSONData(from instances: [Product]) throws -> Data {
+        return try Product.encoder.encode(instances)
     }
 }

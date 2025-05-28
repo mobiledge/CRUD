@@ -173,7 +173,7 @@ struct ProductEditView: View {
     NavigationStack {
         ProductEditView(
             viewModel: ProductEditViewModel(
-                product: Product.mock,
+                product: Product.mockValue,
                 productRepository: ProductRepository(
                     productNetworkService: ProductNetworkService(
                         networkService: NetworkService(
@@ -192,7 +192,7 @@ struct ProductEditView: View {
     NavigationStack {
         ProductEditView(
             viewModel: ProductEditViewModel(
-                product: Product.mock,
+                product: Product.mockValue,
                 productRepository: ProductRepository(
                     productNetworkService: ProductNetworkService(
                         networkService: NetworkService(

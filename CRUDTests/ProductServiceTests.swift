@@ -16,7 +16,7 @@ class ProductServiceTests: XCTestCase {
     }
 
     func testFetchAll_Success() async throws {
-        let expectedProducts = Product.mockProducts
+        let expectedProducts = Product.mockArray
         let productsData = try JSONEncoder().encode(expectedProducts)
         let mockSession = HTTPSession.mockSuccess(data: productsData)
         let productService = ProductService.live(server: mockServer, session: mockSession)
@@ -44,7 +44,7 @@ class ProductServiceTests: XCTestCase {
     }
 
     func testFetchById_Success() async throws {
-        let expectedProduct = Product.mock
+        let expectedProduct = Product.mockValue
         let productData = try JSONEncoder().encode(expectedProduct)
         let mockSession = HTTPSession.mockSuccess(data: productData)
         let productService = ProductService.live(server: mockServer, session: mockSession)
