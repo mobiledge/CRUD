@@ -32,7 +32,7 @@ class ProductRepositoryTests: XCTestCase {
             Product(id: 101, name: "Fetched Product A"),
             Product(id: 102, name: "Fetched Product B")
         ]
-        var mockService = makeMockService()
+        let mockService = makeMockService()
         mockService.fetchAllHandler = { expectedProducts }
         
         let sut = makeSUT(productNetworkService: mockService)
@@ -48,7 +48,7 @@ class ProductRepositoryTests: XCTestCase {
 
     func testFetchAll_Failure_ThrowsErrorAndProductsRemainUnchanged() async {
         // Arrange
-        var mockService = makeMockService()
+        let mockService = makeMockService()
         let expectedError = TestError.network("FetchAll failed")
         mockService.fetchAllHandler = { throw expectedError }
 
@@ -72,7 +72,7 @@ class ProductRepositoryTests: XCTestCase {
         let existingProduct = Product(id: 201, name: "Original Name")
         let updatedProductFromService = Product(id: 201, name: "Updated Name From Service")
         
-        var mockService = makeMockService()
+        let mockService = makeMockService()
         mockService.fetchByIdHandler = { id in
             XCTAssertEqual(id, 201, "fetchById called with incorrect ID.")
             return updatedProductFromService
@@ -98,7 +98,7 @@ class ProductRepositoryTests: XCTestCase {
         // Arrange
         let newProductFromServer = Product(id: 202, name: "New Product")
         
-        var mockService = makeMockService()
+        let mockService = makeMockService()
         mockService.fetchByIdHandler = { id in
             XCTAssertEqual(id, 202, "fetchById called with incorrect ID.")
             return newProductFromServer
@@ -118,7 +118,7 @@ class ProductRepositoryTests: XCTestCase {
 
     func testFetchById_Failure_ThrowsErrorAndProductsRemainUnchanged() async {
         // Arrange
-        var mockService = makeMockService()
+        let mockService = makeMockService()
         let expectedError = TestError.network("FetchById failed")
         mockService.fetchByIdHandler = { _ in throw expectedError }
 
@@ -143,7 +143,7 @@ class ProductRepositoryTests: XCTestCase {
         let productToCreate = Product(id: 0, name: "New Product Pre-Create") // Assuming backend assigns ID
         let createdProductFromServer = Product(id: 301, name: "New Product Post-Create")
         
-        var mockService = makeMockService()
+        let mockService = makeMockService()
         mockService.createHandler = { product in
             XCTAssertEqual(product.name, productToCreate.name)
             return createdProductFromServer
@@ -164,7 +164,7 @@ class ProductRepositoryTests: XCTestCase {
     func testCreate_Failure_ThrowsErrorAndProductsRemainUnchanged() async {
         // Arrange
         let productToCreate = Product(id: 302, name: "Product To Create")
-        var mockService = makeMockService()
+        let mockService = makeMockService()
         let expectedError = TestError.network("Create failed")
         mockService.createHandler = { _ in throw expectedError }
 
@@ -189,7 +189,7 @@ class ProductRepositoryTests: XCTestCase {
         let productToUpdateWith = Product(id: 401, name: "Updated Name") // Passed to sut.update()
         let updatedProductFromServer = Product(id: 401, name: "Name From Server After Update") // Mock service returns this
 
-        var mockService = makeMockService()
+        let mockService = makeMockService()
         mockService.updateHandler = { product in
             XCTAssertEqual(product, productToUpdateWith, "Product passed to service for update is incorrect.")
             return updatedProductFromServer
@@ -214,7 +214,7 @@ class ProductRepositoryTests: XCTestCase {
     func testUpdate_Failure_ThrowsErrorAndProductsRemainUnchanged() async {
         // Arrange
         let productToUpdate = Product(id: 403, name: "Product To Update")
-        var mockService = makeMockService()
+        let mockService = makeMockService()
         let expectedError = TestError.network("Update failed")
         mockService.updateHandler = { _ in throw expectedError }
 
@@ -238,7 +238,7 @@ class ProductRepositoryTests: XCTestCase {
         let productToDelete = Product(id: 501, name: "To Delete")
         let otherProduct = Product(id: 500, name: "To Keep")
         
-        var mockService = makeMockService()
+        let mockService = makeMockService()
         mockService.deleteHandler = { id in
             XCTAssertEqual(id, 501, "delete called with incorrect ID.")
         }
@@ -260,7 +260,7 @@ class ProductRepositoryTests: XCTestCase {
         let otherProduct = Product(id: 500, name: "To Keep")
         let idToDelete = 502 // This ID is not in the list
         
-        var mockService = makeMockService()
+        let mockService = makeMockService()
         mockService.deleteHandler = { id in
             XCTAssertEqual(id, idToDelete)
         }
@@ -278,7 +278,7 @@ class ProductRepositoryTests: XCTestCase {
     func testDelete_Failure_ThrowsErrorAndProductsRemainUnchanged() async {
         // Arrange
         let productToDelete = Product(id: 503, name: "Product To Delete")
-        var mockService = makeMockService()
+        let mockService = makeMockService()
         let expectedError = TestError.network("Delete failed")
         mockService.deleteHandler = { _ in throw expectedError }
 
