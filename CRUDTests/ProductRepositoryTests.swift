@@ -6,8 +6,21 @@ enum TestError: Error, Equatable {
     case general
 }
 
-@MainActor // Ensures test methods run on the main actor, aligning with ProductRepository
+@MainActor
 class ProductRepositoryTests: XCTestCase {
+
+    // MARK: - Helpers
+
+    private func makeMockService() -> MockProductNetworkService {
+        return MockProductNetworkService()
+    }
+
+    private func makeSUT(
+        products: [Product] = [],
+        productNetworkService: MockProductNetworkService
+    ) -> ProductRepository {
+        return ProductRepository(products: products, productNetworkService: productNetworkService)
+    }
 
     // MARK: - Test Cases
 
@@ -19,14 +32,13 @@ class ProductRepositoryTests: XCTestCase {
             Product(id: 101, name: "Fetched Product A"),
             Product(id: 102, name: "Fetched Product B")
         ]
-        var mockNetworkService = MockProductNetworkService()
-        mockNetworkService.fetchAllHandler = { expectedProducts }
+        var mockService = makeMockService()
+        mockService.fetchAllHandler = { expectedProducts }
         
-        let sut = ProductRepository(productNetworkService: mockNetworkService)
+        let sut = makeSUT(productNetworkService: mockService)
         XCTAssertTrue(sut.products.isEmpty, "Products should be initially empty")
 
         // Act
-        // The Task.sleep(for: .seconds(2)) in fetchAll() will cause this test to take at least 2 seconds.
         let fetchedProducts = try await sut.fetchAll()
 
         // Assert
@@ -36,12 +48,12 @@ class ProductRepositoryTests: XCTestCase {
 
     func testFetchAll_Failure_ThrowsErrorAndProductsRemainUnchanged() async {
         // Arrange
-        var mockNetworkService = MockProductNetworkService()
+        var mockService = makeMockService()
         let expectedError = TestError.network("FetchAll failed")
-        mockNetworkService.fetchAllHandler = { throw expectedError }
+        mockService.fetchAllHandler = { throw expectedError }
 
-        let sut = ProductRepository(productNetworkService: mockNetworkService)
-        let initialProducts = sut.products // Should be empty
+        let sut = makeSUT(productNetworkService: mockService)
+        let initialProducts = sut.products
 
         // Act & Assert
         do {
@@ -60,16 +72,14 @@ class ProductRepositoryTests: XCTestCase {
         let existingProduct = Product(id: 201, name: "Original Name")
         let updatedProductFromService = Product(id: 201, name: "Updated Name From Service")
         
-        var mockNetworkService = MockProductNetworkService()
-        mockNetworkService.fetchByIdHandler = { id in
+        var mockService = makeMockService()
+        mockService.fetchByIdHandler = { id in
             XCTAssertEqual(id, 201, "fetchById called with incorrect ID.")
             return updatedProductFromService
         }
         
-        let sut = ProductRepository(
-            products: [Product(id: 200, name: "Other Product"), existingProduct],
-            productNetworkService: mockNetworkService
-        )
+        let initialRepoProducts = [Product(id: 200, name: "Other Product"), existingProduct]
+        let sut = makeSUT(products: initialRepoProducts, productNetworkService: mockService)
 
         // Act
         let fetchedProduct = try await sut.fetchById(201)
@@ -88,16 +98,14 @@ class ProductRepositoryTests: XCTestCase {
         // Arrange
         let newProductFromServer = Product(id: 202, name: "New Product")
         
-        var mockNetworkService = MockProductNetworkService()
-        mockNetworkService.fetchByIdHandler = { id in
+        var mockService = makeMockService()
+        mockService.fetchByIdHandler = { id in
             XCTAssertEqual(id, 202, "fetchById called with incorrect ID.")
             return newProductFromServer
         }
         
-        let sut = ProductRepository(
-            products: [Product(id: 200, name: "Existing Product")],
-            productNetworkService: mockNetworkService
-        )
+        let initialRepoProducts = [Product(id: 200, name: "Existing Product")]
+        let sut = makeSUT(products: initialRepoProducts, productNetworkService: mockService)
 
         // Act
         let fetchedProduct = try await sut.fetchById(202)
@@ -110,17 +118,13 @@ class ProductRepositoryTests: XCTestCase {
 
     func testFetchById_Failure_ThrowsErrorAndProductsRemainUnchanged() async {
         // Arrange
-        var mockNetworkService = MockProductNetworkService()
+        var mockService = makeMockService()
         let expectedError = TestError.network("FetchById failed")
-        mockNetworkService.fetchByIdHandler = { _ in throw expectedError }
+        mockService.fetchByIdHandler = { _ in throw expectedError }
 
         let initialProduct = Product(id: 1, name: "Initial")
-        let sut = ProductRepository(
-            products: [initialProduct],
-            productNetworkService: mockNetworkService
-        )
+        let sut = makeSUT(products: [initialProduct], productNetworkService: mockService)
         let initialProductsState = sut.products
-
 
         // Act & Assert
         do {
@@ -136,17 +140,16 @@ class ProductRepositoryTests: XCTestCase {
 
     func testCreate_Success_AppendsProductToListAndReturnsIt() async throws {
         // Arrange
-        let productToCreate = Product(id: 0, name: "New Product Pre-Create") // Assuming backend might assign ID
+        let productToCreate = Product(id: 0, name: "New Product Pre-Create") // Assuming backend assigns ID
         let createdProductFromServer = Product(id: 301, name: "New Product Post-Create")
         
-        var mockNetworkService = MockProductNetworkService()
-        mockNetworkService.createHandler = { product in
-            // You might want to assert productToCreate properties here if needed
+        var mockService = makeMockService()
+        mockService.createHandler = { product in
             XCTAssertEqual(product.name, productToCreate.name)
             return createdProductFromServer
         }
         
-        let sut = ProductRepository(productNetworkService: mockNetworkService)
+        let sut = makeSUT(productNetworkService: mockService)
         XCTAssertTrue(sut.products.isEmpty, "Products should be initially empty")
 
         // Act
@@ -161,11 +164,11 @@ class ProductRepositoryTests: XCTestCase {
     func testCreate_Failure_ThrowsErrorAndProductsRemainUnchanged() async {
         // Arrange
         let productToCreate = Product(id: 302, name: "Product To Create")
-        var mockNetworkService = MockProductNetworkService()
+        var mockService = makeMockService()
         let expectedError = TestError.network("Create failed")
-        mockNetworkService.createHandler = { _ in throw expectedError }
+        mockService.createHandler = { _ in throw expectedError }
 
-        let sut = ProductRepository(productNetworkService: mockNetworkService)
+        let sut = makeSUT(productNetworkService: mockService)
         let initialProductsState = sut.products
 
         // Act & Assert
@@ -183,19 +186,17 @@ class ProductRepositoryTests: XCTestCase {
     func testUpdate_Success_UpdatesProductInListAndReturnsIt() async throws {
         // Arrange
         let originalProduct = Product(id: 401, name: "Original Name")
-        let productToUpdateWith = Product(id: 401, name: "Updated Name") // This is passed to sut.update()
+        let productToUpdateWith = Product(id: 401, name: "Updated Name") // Passed to sut.update()
         let updatedProductFromServer = Product(id: 401, name: "Name From Server After Update") // Mock service returns this
 
-        var mockNetworkService = MockProductNetworkService()
-        mockNetworkService.updateHandler = { product in
+        var mockService = makeMockService()
+        mockService.updateHandler = { product in
             XCTAssertEqual(product, productToUpdateWith, "Product passed to service for update is incorrect.")
             return updatedProductFromServer
         }
         
-        let sut = ProductRepository(
-            products: [Product(id: 400, name: "Other"), originalProduct],
-            productNetworkService: mockNetworkService
-        )
+        let initialRepoProducts = [Product(id: 400, name: "Other"), originalProduct]
+        let sut = makeSUT(products: initialRepoProducts, productNetworkService: mockService)
 
         // Act
         let resultProduct = try await sut.update(productToUpdateWith)
@@ -213,16 +214,12 @@ class ProductRepositoryTests: XCTestCase {
     func testUpdate_Failure_ThrowsErrorAndProductsRemainUnchanged() async {
         // Arrange
         let productToUpdate = Product(id: 403, name: "Product To Update")
-        var mockNetworkService = MockProductNetworkService()
+        var mockService = makeMockService()
         let expectedError = TestError.network("Update failed")
-        mockNetworkService.updateHandler = { _ in throw expectedError }
+        mockService.updateHandler = { _ in throw expectedError }
 
-        let sut = ProductRepository(
-            products: [productToUpdate],
-            productNetworkService: mockNetworkService
-        )
+        let sut = makeSUT(products: [productToUpdate], productNetworkService: mockService)
         let initialProductsState = sut.products
-
 
         // Act & Assert
         do {
@@ -241,16 +238,13 @@ class ProductRepositoryTests: XCTestCase {
         let productToDelete = Product(id: 501, name: "To Delete")
         let otherProduct = Product(id: 500, name: "To Keep")
         
-        var mockNetworkService = MockProductNetworkService()
-        mockNetworkService.deleteHandler = { id in
+        var mockService = makeMockService()
+        mockService.deleteHandler = { id in
             XCTAssertEqual(id, 501, "delete called with incorrect ID.")
-            // Default mock does nothing, which implies success
         }
         
-        let sut = ProductRepository(
-            products: [otherProduct, productToDelete],
-            productNetworkService: mockNetworkService
-        )
+        let initialRepoProducts = [otherProduct, productToDelete]
+        let sut = makeSUT(products: initialRepoProducts, productNetworkService: mockService)
 
         // Act
         try await sut.delete(501)
@@ -266,15 +260,12 @@ class ProductRepositoryTests: XCTestCase {
         let otherProduct = Product(id: 500, name: "To Keep")
         let idToDelete = 502 // This ID is not in the list
         
-        var mockNetworkService = MockProductNetworkService()
-        mockNetworkService.deleteHandler = { id in
+        var mockService = makeMockService()
+        mockService.deleteHandler = { id in
             XCTAssertEqual(id, idToDelete)
         }
         
-        let sut = ProductRepository(
-            products: [otherProduct],
-            productNetworkService: mockNetworkService
-        )
+        let sut = makeSUT(products: [otherProduct], productNetworkService: mockService)
         let initialProducts = sut.products
 
         // Act
@@ -287,14 +278,11 @@ class ProductRepositoryTests: XCTestCase {
     func testDelete_Failure_ThrowsErrorAndProductsRemainUnchanged() async {
         // Arrange
         let productToDelete = Product(id: 503, name: "Product To Delete")
-        var mockNetworkService = MockProductNetworkService()
+        var mockService = makeMockService()
         let expectedError = TestError.network("Delete failed")
-        mockNetworkService.deleteHandler = { _ in throw expectedError }
+        mockService.deleteHandler = { _ in throw expectedError }
 
-        let sut = ProductRepository(
-            products: [productToDelete],
-            productNetworkService: mockNetworkService
-        )
+        let sut = makeSUT(products: [productToDelete], productNetworkService: mockService)
         let initialProductsState = sut.products
 
         // Act & Assert
