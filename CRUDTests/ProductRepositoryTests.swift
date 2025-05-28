@@ -66,8 +66,10 @@ class ProductRepositoryTests: XCTestCase {
             return updatedProductFromService
         }
         
-        let sut = ProductRepository(productNetworkService: mockNetworkService)
-        sut.products = [Product(id: 200, name: "Other Product"), existingProduct]
+        let sut = ProductRepository(
+            products: [Product(id: 200, name: "Other Product"), existingProduct],
+            productNetworkService: mockNetworkService
+        )
 
         // Act
         let fetchedProduct = try await sut.fetchById(201)
@@ -92,8 +94,10 @@ class ProductRepositoryTests: XCTestCase {
             return newProductFromServer
         }
         
-        let sut = ProductRepository(productNetworkService: mockNetworkService)
-        sut.products = [Product(id: 200, name: "Existing Product")]
+        let sut = ProductRepository(
+            products: [Product(id: 200, name: "Existing Product")],
+            productNetworkService: mockNetworkService
+        )
 
         // Act
         let fetchedProduct = try await sut.fetchById(202)
@@ -110,9 +114,11 @@ class ProductRepositoryTests: XCTestCase {
         let expectedError = TestError.network("FetchById failed")
         mockNetworkService.fetchByIdHandler = { _ in throw expectedError }
 
-        let sut = ProductRepository(productNetworkService: mockNetworkService)
         let initialProduct = Product(id: 1, name: "Initial")
-        sut.products = [initialProduct]
+        let sut = ProductRepository(
+            products: [initialProduct],
+            productNetworkService: mockNetworkService
+        )
         let initialProductsState = sut.products
 
 
@@ -174,7 +180,7 @@ class ProductRepositoryTests: XCTestCase {
 
     // MARK: update()
 
-    func testUpdate_Success_ProductExists_UpdatesProductInListAndReturnsIt() async throws {
+    func testUpdate_Success_UpdatesProductInListAndReturnsIt() async throws {
         // Arrange
         let originalProduct = Product(id: 401, name: "Original Name")
         let productToUpdateWith = Product(id: 401, name: "Updated Name") // This is passed to sut.update()
@@ -186,8 +192,10 @@ class ProductRepositoryTests: XCTestCase {
             return updatedProductFromServer
         }
         
-        let sut = ProductRepository(productNetworkService: mockNetworkService)
-        sut.products = [Product(id: 400, name: "Other"), originalProduct]
+        let sut = ProductRepository(
+            products: [Product(id: 400, name: "Other"), originalProduct],
+            productNetworkService: mockNetworkService
+        )
 
         // Act
         let resultProduct = try await sut.update(productToUpdateWith)
@@ -201,30 +209,6 @@ class ProductRepositoryTests: XCTestCase {
             XCTFail("Product with ID 401 not found in repository after update.")
         }
     }
-    
-    func testUpdate_Success_ProductNotExistsInRepository_ReturnsProductButListUnchanged() async throws {
-        // Arrange
-        let productNotInRepo = Product(id: 402, name: "Non Existent Product")
-        let productFromServer = Product(id: 402, name: "Non Existent Product From Server")
-
-        var mockNetworkService = MockProductNetworkService()
-        mockNetworkService.updateHandler = { product in
-            XCTAssertEqual(product, productNotInRepo)
-            return productFromServer
-        }
-        
-        let sut = ProductRepository(productNetworkService: mockNetworkService)
-        sut.products = [Product(id: 400, name: "Some other product")]
-        let initialProductsCount = sut.products.count
-
-        // Act
-        let resultProduct = try await sut.update(productNotInRepo)
-
-        // Assert
-        XCTAssertEqual(resultProduct, productFromServer, "Returned product should be from the service.")
-        XCTAssertEqual(sut.products.count, initialProductsCount, "Product count should remain unchanged.")
-        XCTAssertFalse(sut.products.contains(where: { $0.id == 402 }), "Product should not have been added to the list.")
-    }
 
     func testUpdate_Failure_ThrowsErrorAndProductsRemainUnchanged() async {
         // Arrange
@@ -233,8 +217,10 @@ class ProductRepositoryTests: XCTestCase {
         let expectedError = TestError.network("Update failed")
         mockNetworkService.updateHandler = { _ in throw expectedError }
 
-        let sut = ProductRepository(productNetworkService: mockNetworkService)
-        sut.products = [productToUpdate]
+        let sut = ProductRepository(
+            products: [productToUpdate],
+            productNetworkService: mockNetworkService
+        )
         let initialProductsState = sut.products
 
 
@@ -261,8 +247,10 @@ class ProductRepositoryTests: XCTestCase {
             // Default mock does nothing, which implies success
         }
         
-        let sut = ProductRepository(productNetworkService: mockNetworkService)
-        sut.products = [otherProduct, productToDelete]
+        let sut = ProductRepository(
+            products: [otherProduct, productToDelete],
+            productNetworkService: mockNetworkService
+        )
 
         // Act
         try await sut.delete(501)
@@ -283,8 +271,10 @@ class ProductRepositoryTests: XCTestCase {
             XCTAssertEqual(id, idToDelete)
         }
         
-        let sut = ProductRepository(productNetworkService: mockNetworkService)
-        sut.products = [otherProduct]
+        let sut = ProductRepository(
+            products: [otherProduct],
+            productNetworkService: mockNetworkService
+        )
         let initialProducts = sut.products
 
         // Act
@@ -301,8 +291,10 @@ class ProductRepositoryTests: XCTestCase {
         let expectedError = TestError.network("Delete failed")
         mockNetworkService.deleteHandler = { _ in throw expectedError }
 
-        let sut = ProductRepository(productNetworkService: mockNetworkService)
-        sut.products = [productToDelete]
+        let sut = ProductRepository(
+            products: [productToDelete],
+            productNetworkService: mockNetworkService
+        )
         let initialProductsState = sut.products
 
         // Act & Assert

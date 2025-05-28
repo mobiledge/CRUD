@@ -272,65 +272,70 @@ struct MockProductNetworkService: ProductNetworkService {
 }
 
 // MARK: - ProductRepository
+
 @MainActor
 @Observable
 class ProductRepository {
-    var products = [Product]()
     
+    private(set) var products = [Product]()
     private let productNetworkService: ProductNetworkService
+
+    // MARK: - Initialization
     
-    init(productNetworkService: any ProductNetworkService) {
+    init(
+        products: [Product] = [Product](),
+        productNetworkService: ProductNetworkService
+    ) {
+        self.products = products
         self.productNetworkService = productNetworkService
     }
-    
-    convenience init(server: HTTPServer = .prod, session: HTTPSession = .live()) {
-        let networkService = NetworkService(server: server, session: session)
-        let productNetworkService = LiveProductNetworkService(networkService: networkService)
-        self.init(productNetworkService: productNetworkService)
-    }
-    
+
+    // MARK: - Public Network Operations
+
     @discardableResult
     func fetchAll() async throws -> [Product] {
-        try await Task.sleep(for: .seconds(2))
+        try await Task.sleep(for: .seconds(2)) // Simulate network delay
         let fetchedProducts = try await productNetworkService.fetchAll()
         self.products = fetchedProducts
         return fetchedProducts
     }
-    
+
     @discardableResult
     func fetchById(_ id: Int) async throws -> Product {
         let product = try await productNetworkService.fetchById(id)
-        
-        if let index = products.firstIndex(where: { $0.id == id }) {
+        self.upsert(product)
+        return product
+    }
+
+    @discardableResult
+    func create(_ product: Product) async throws -> Product {
+        let createdProduct = try await productNetworkService.create(product)
+        self.upsert(createdProduct)
+        return createdProduct
+    }
+
+    @discardableResult
+    func update(_ product: Product) async throws -> Product {
+        let updatedProduct = try await productNetworkService.update(product)
+        self.upsert(updatedProduct)
+        return updatedProduct
+    }
+
+    func delete(_ id: Int) async throws -> Void {
+        try await productNetworkService.delete(id)
+        products.removeAll { $0.id == id }
+    }
+
+    // MARK: - Cached Product Access
+    func lookup(_ id: Int) -> Product? {
+        return products.first(where: { $0.id == id })
+    }
+
+    private func upsert(_ product: Product) {
+        if let index = products.firstIndex(where: { $0.id == product.id }) {
             products[index] = product
         } else {
             products.append(product)
         }
-        
-        return product
-    }
-    
-    @discardableResult
-    func create(_ product: Product) async throws -> Product {
-        let createdProduct = try await productNetworkService.create(product)
-        products.append(createdProduct)
-        return createdProduct
-    }
-    
-    @discardableResult
-    func update(_ product: Product) async throws -> Product {
-        let updatedProduct = try await productNetworkService.update(product)
-        
-        if let index = products.firstIndex(where: { $0.id == product.id }) {
-            products[index] = updatedProduct
-        }
-        
-        return updatedProduct
-    }
-    
-    @discardableResult
-    func delete(_ id: Int) async throws -> Void {
-        try await productNetworkService.delete(id)
-        products.removeAll { $0.id == id }
     }
 }
