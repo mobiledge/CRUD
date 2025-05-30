@@ -43,14 +43,7 @@ struct ProductListView: View {
     NavigationStack {
         ProductListView(
             viewModel: ProductListViewModel(
-                repository: ProductRepository(
-                    productNetworkService: LiveProductNetworkService(
-                        networkService: NetworkService(
-                            server: .local,
-                            session: .live()
-                        )
-                    )
-                )
+                repository: ProductRepository.mock
             )
         )
     }

@@ -112,14 +112,7 @@ struct ProductDetailView: View {
         ProductDetailView(
             viewModel: ProductDetailViewModel(
                 productId: 1,
-                repository: ProductRepository(
-                    productNetworkService: LiveProductNetworkService(
-                        networkService: NetworkService(
-                            server: .local,
-                            session: .live()
-                        )
-                    )
-                )
+                repository: ProductRepository.mock
             )
         )
     }

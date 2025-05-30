@@ -10,14 +10,10 @@ import SwiftUI
 struct ContentView: View {
     var body: some View {
         NavigationStack {
-            ProductListView(viewModel: ProductListViewModel(
-                    repository: ProductRepository(
-                        productNetworkService: LiveProductNetworkService(
-                            networkService: NetworkService(
-                                server: .local,
-                                session: .live()
-                            )
-                        )
+            ProductListView(
+                viewModel: ProductListViewModel(
+                    repository: ProductRepository.live(
+                        server: .local
                     )
                 )
             )

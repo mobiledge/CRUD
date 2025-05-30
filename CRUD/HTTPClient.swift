@@ -115,10 +115,22 @@ extension URLRequest {
 actor NetworkService {
     let server: HTTPServer
     let session: HTTPSession
+    private static let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "NetworkService", category: "networking")
+
     
-    init(server: HTTPServer, session: HTTPSession) {
+    private init(server: HTTPServer, session: HTTPSession) {
         self.server = server
         self.session = session
+    }
+    
+    static func live(server: HTTPServer) -> NetworkService {
+        NetworkService(server: server, session: .live())
+    }
+    static func mockSuccess(data: Data) -> NetworkService {
+        NetworkService(server: .mock, session: .mockSuccess(data: data))
+    }
+    static func mockError(_ error: Error) -> NetworkService {
+        NetworkService(server: .mock, session: .mockError(error))
     }
     
     func makeRequest(path: HTTPPath,
@@ -158,6 +170,61 @@ actor NetworkService {
     func validateResponse(_ response: (Data, URLResponse)) throws {
         // No validation
     }
+    
+    // MARK: -
+    func dispatch(urlRequest: URLRequest) async throws -> Data {
+        var mutableRequest = urlRequest
+        configureRequest(&mutableRequest)
+        
+        NetworkService.logger.info("Dispatch: \(mutableRequest.httpMethod ?? "N/A") \(mutableRequest.url?.absoluteString ?? "unknown URL")")
+        
+        let (data, urlResponse) = try await URLSession.shared.data(for: mutableRequest)
+        try validateResponse(data: data, urlResponse: urlResponse)
+        return data
+    }
+    
+    private func configureRequest(_ request: inout URLRequest) {
+        if request.value(forHTTPHeaderField: "Content-Type") == nil {
+            request.setValue("application/json; charset=utf-8", forHTTPHeaderField: "Content-Type")
+        }
+        if request.value(forHTTPHeaderField: "Accept") == nil {
+            request.setValue("application/json", forHTTPHeaderField: "Accept")
+        }
+    }
+    
+    private func validateResponse(data: Data, urlResponse: URLResponse) throws {
+        guard let httpResponse = urlResponse as? HTTPURLResponse else {
+            NetworkService.logger.error("Error: Invalid HTTP response type. URL: \(urlResponse.url?.absoluteString ?? "N/A")")
+            throw HTTPError.badHTTPResponse
+        }
+        guard (200..<300).contains(httpResponse.statusCode) else {
+            NetworkService.logger.error("Error: HTTP \(httpResponse.statusCode). URL: \(httpResponse.url?.absoluteString ?? "N/A"). Data: \(String(data: data, encoding: .utf8) ?? "Non-UTF8 data")")
+            throw HTTPError.badStatusCode(httpResponse.statusCode)
+        }
+    }
+}
+
+extension NetworkService {
+    
+    func get(path: HTTPPath, headers: [String: String]? = nil) async throws -> Data {
+        let request = URLRequest(server: self.server, path: path, method: .get, headers: headers)
+        return try await dispatch(urlRequest: request)
+    }
+    
+    func post(path: HTTPPath, headers: [String: String]? = nil, body: HTTPBody) async throws -> Data {
+        let request = URLRequest(server: self.server, path: path, method: .post, headers: headers, body: body)
+        return try await dispatch(urlRequest: request)
+    }
+    
+    func put(path: HTTPPath, headers: [String: String]? = nil, body: HTTPBody) async throws -> Data {
+        let request = URLRequest(server: self.server, path: path, method: .put, headers: headers, body: body)
+        return try await dispatch(urlRequest: request)
+    }
+    
+    func delete(path: HTTPPath, headers: [String: String]? = nil) async throws -> Data {
+        let request = URLRequest(server: self.server, path: path, method: .delete, headers: headers)
+        return try await dispatch(urlRequest: request)
+    }
 }
 
 // MARK: - ProductNetworkService
@@ -167,83 +234,88 @@ protocol ProductNetworkService {
     func fetchById(_ id: Int) async throws -> Product
     func create(_ product: Product) async throws -> Product
     func update(_ product: Product) async throws -> Product
-    func delete(_ id: Int) async throws -> Void
+    func delete(_ id: Int) async throws
 }
-
 extension ProductNetworkService {
-    static func live(networkService: NetworkService) -> LiveProductNetworkService {
-        LiveProductNetworkService(networkService: networkService)
+    static func live(server: HTTPServer) -> NetworkService {
+        NetworkService.live(server: server)
     }
-    
     static var mock: MockProductNetworkService {
         MockProductNetworkService()
     }
 }
 
-// MARK: - LiveProductNetworkService
+extension NetworkService: ProductNetworkService {
 
-actor LiveProductNetworkService: ProductNetworkService {
-    let networkService: NetworkService
+    private static let productLogger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "ProductNetworkService", category: "dataProcessing")
+
+    static let decoder: JSONDecoder = {
+        let decoder = JSONDecoder()
+        decoder.keyDecodingStrategy = .convertFromSnakeCase
+        decoder.dateDecodingStrategy = .iso8601
+        return decoder
+    }()
+
+    static let encoder: JSONEncoder = {
+        let encoder = JSONEncoder()
+        encoder.keyEncodingStrategy = .convertToSnakeCase
+        encoder.dateEncodingStrategy = .iso8601
+        return encoder
+    }()
+
+    // MARK: - Private Encoding/Decoding Helpers
     
-    init(networkService: NetworkService) {
-        self.networkService = networkService
+    private static func decode<T: Decodable>(_ data: Data, as type: T.Type, context: String) throws -> T {
+        do {
+            return try decoder.decode(type, from: data)
+        } catch {
+            productLogger.error("Error: Failed to decode \(context). \(error.localizedDescription)")
+            throw error
+        }
     }
+
+    private static func encode<T: Encodable>(_ value: T, context: String) throws -> Data {
+        do {
+            return try encoder.encode(value)
+        } catch {
+            productLogger.error("Error: Failed to encode \(context). \(error.localizedDescription)")
+            throw error
+        }
+    }
+
+    // MARK: - Product CRUD Methods
     
     func fetchAll() async throws -> [Product] {
-        let request = await networkService.makeRequest(path: "products")
-        let response = try await networkService.sendRequest(request)
-        try await networkService.validateResponse(response)
-        return try Product.array(from: response.0)
+        let data = try await get(path: "products")
+        return try Self.decode(data, as: [Product].self, context: "[Product]")
     }
-    
+
     func fetchById(_ id: Int) async throws -> Product {
-        let request = await networkService.makeRequest(path: "products/\(id)")
-        let response = try await networkService.sendRequest(request)
-        try await networkService.validateResponse(response)
-        return try Product(jsonData: response.0)
+        let data = try await get(path: "products/\(id)")
+        return try Self.decode(data, as: Product.self, context: "Product id \(id)")
     }
     
     func create(_ product: Product) async throws -> Product {
-        let jsonData = try product.toJSONData()
-        let request = await networkService.makeRequest(
-            path: "products/add",
-            method: .post,
-            body: jsonData
-        )
-        
-        let response = try await networkService.sendRequest(request)
-        try await networkService.validateResponse(response)
-        return try Product(jsonData: response.0)
+        let productData = try Self.encode(product, context: "product for creation")
+        let responseData = try await post(path: "products", body: productData)
+        return try Self.decode(responseData, as: Product.self, context: "created Product")
     }
-    
+
     func update(_ product: Product) async throws -> Product {
-        let jsonData = try product.toJSONData()
-        let request = await networkService.makeRequest(
-            path: "products/\(product.id)",
-            method: .put,
-            body: jsonData
-        )
-        
-        let response = try await networkService.sendRequest(request)
-        try await networkService.validateResponse(response)
-        return try Product(jsonData: response.0)
+        let productPayload = try Self.encode(product, context: "product for update")
+        let responseData = try await put(path: "products/\(product.id)", body: productPayload)
+        return try Self.decode(responseData, as: Product.self, context: "updated Product id \(product.id)")
     }
-    
-    func delete(_ id: Int) async throws -> Void {
-        let request = await networkService.makeRequest(
-            path: "products/\(id)",
-            method: .delete
-        )
-        
-        let response = try await networkService.sendRequest(request)
-        try await networkService.validateResponse(response)
+
+    func delete(_ id: Int) async throws {
+        _ = try await delete(path: "products/\(id)")
     }
 }
 
 // MARK: - MockProductNetworkService
 
 class MockProductNetworkService: ProductNetworkService {
-
+    
     typealias FetchAllHandler = () async throws -> [Product]
     typealias FetchByIdHandler = (_ id: Int) async throws -> Product
     typealias CreateHandler = (_ product: Product) async throws -> Product
@@ -288,7 +360,7 @@ class ProductRepository {
     
     private(set) var products = [Product]()
     private let productNetworkService: ProductNetworkService
-
+    
     // MARK: - Initialization
     
     init(
@@ -298,48 +370,55 @@ class ProductRepository {
         self.products = products
         self.productNetworkService = productNetworkService
     }
-
+    
+    static func live(server: HTTPServer) -> ProductRepository {
+        ProductRepository(productNetworkService: NetworkService.live(server: server))
+    }
+    static var mock: ProductRepository {
+        ProductRepository(productNetworkService: MockProductNetworkService())
+    }
+    
     // MARK: - Public Network Operations
-
+    
     @discardableResult
     func fetchAll() async throws -> [Product] {
-//        try await Task.sleep(for: .seconds(2)) // Simulate network delay
+        //        try await Task.sleep(for: .seconds(2)) // Simulate network delay
         let fetchedProducts = try await productNetworkService.fetchAll()
         self.products = fetchedProducts
         return fetchedProducts
     }
-
+    
     @discardableResult
     func fetchById(_ id: Int) async throws -> Product {
         let product = try await productNetworkService.fetchById(id)
         self.upsert(product)
         return product
     }
-
+    
     @discardableResult
     func create(_ product: Product) async throws -> Product {
         let createdProduct = try await productNetworkService.create(product)
         self.upsert(createdProduct)
         return createdProduct
     }
-
+    
     @discardableResult
     func update(_ product: Product) async throws -> Product {
         let updatedProduct = try await productNetworkService.update(product)
         self.upsert(updatedProduct)
         return updatedProduct
     }
-
+    
     func delete(_ id: Int) async throws -> Void {
         try await productNetworkService.delete(id)
         products.removeAll { $0.id == id }
     }
-
+    
     // MARK: - Cached Product Access
     func lookup(_ id: Int) -> Product? {
         return products.first(where: { $0.id == id })
     }
-
+    
     private func upsert(_ product: Product) {
         if let index = products.firstIndex(where: { $0.id == product.id }) {
             products[index] = product

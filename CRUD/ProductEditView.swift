@@ -174,14 +174,7 @@ struct ProductEditView: View {
         ProductEditView(
             viewModel: ProductEditViewModel(
                 product: Product.mockValue,
-                productRepository: ProductRepository(
-                    productNetworkService: LiveProductNetworkService(
-                        networkService: NetworkService(
-                            server: .local,
-                            session: .live()
-                        )
-                    )
-                )
+                productRepository: ProductRepository.mock
             )
         )
     }
@@ -193,14 +186,7 @@ struct ProductEditView: View {
         ProductEditView(
             viewModel: ProductEditViewModel(
                 product: Product.mockValue,
-                productRepository: ProductRepository(
-                    productNetworkService: LiveProductNetworkService(
-                        networkService: NetworkService(
-                            server: .local,
-                            session: .live()
-                        )
-                    )
-                )
+                productRepository: ProductRepository.mock
             )
         )
     }
