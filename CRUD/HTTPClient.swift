@@ -38,33 +38,21 @@ struct HTTPServer {
 // MARK: - HTTPSession
 
 struct HTTPSession {
-    var dispatch: (URLRequest) async throws -> Data
+    var dispatch: (URLRequest) async throws -> (Data, URLResponse)
     
     private static let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "HTTPSession", category: "networking")
     
     static func live(session: URLSession = .shared) -> HTTPSession {
         HTTPSession { request in
-            logger.info("Making HTTP request to: \(request.url?.absoluteString ?? "unknown URL")")
-            
             do {
+                logger.info("Making HTTP request to: \(request.url?.absoluteString ?? "unknown URL")")
                 let (data, response) = try await session.data(for: request)
-                
-                guard let httpResponse = response as? HTTPURLResponse else {
-                    logger.error("Invalid HTTP response received")
-                    throw HTTPError.badHTTPResponse
-                }
-                
-                guard (200..<300).contains(httpResponse.statusCode) else {
-                    logger.error("HTTP request failed with status code: \(httpResponse.statusCode)")
-                    throw HTTPError.badStatusCode(httpResponse.statusCode)
-                }
-                
                 logger.info("HTTP request successful, received \(data.count) bytes")
-                return data
+                return (data, response)
                 
             } catch {
                 logger.error("HTTP request failed with error: \(error.localizedDescription)")
-                throw error // Re-throw the original error to preserve context
+                throw error
             }
         }
     }
@@ -75,9 +63,9 @@ struct HTTPSession {
         }
     }
     
-    static func mockSuccess(data: Data) -> HTTPSession {
+    static func mockSuccess(data: Data, urlResponse: URLResponse) -> HTTPSession {
         HTTPSession { _ in
-            return data
+            return (data, urlResponse)
         }
     }
 }
@@ -117,7 +105,6 @@ actor NetworkService {
     let session: HTTPSession
     private static let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "NetworkService", category: "networking")
 
-    
     private init(server: HTTPServer, session: HTTPSession) {
         self.server = server
         self.session = session
@@ -126,52 +113,13 @@ actor NetworkService {
     static func live(server: HTTPServer) -> NetworkService {
         NetworkService(server: server, session: .live())
     }
-    static func mockSuccess(data: Data) -> NetworkService {
-        NetworkService(server: .mock, session: .mockSuccess(data: data))
+    static func mockSuccess(data: Data, urlResponse: URLResponse) -> NetworkService {
+        NetworkService(server: .mock, session: .mockSuccess(data: data, urlResponse: urlResponse))
     }
     static func mockError(_ error: Error) -> NetworkService {
         NetworkService(server: .mock, session: .mockError(error))
     }
-    
-    func makeRequest(path: HTTPPath,
-                     method: HTTPMethod = .get,
-                     headers: [String: String]? = nil,
-                     body: HTTPBody? = nil) -> URLRequest {
-        var defaultHeaders = [
-            "Content-Type": "application/json",
-            "Accept": "application/json"
-        ]
-        
-        if let headers = headers {
-            defaultHeaders.merge(headers) { _, new in new }
-        }
-        
-        return URLRequest(
-            server: server,
-            path: path,
-            method: method,
-            headers: defaultHeaders,
-            body: body
-        )
-    }
-    
-    func sendRequest(_ request: URLRequest) async throws -> (Data, URLResponse) {
-        let data = try await session.dispatch(request)
-        let response = HTTPURLResponse(
-            url: request.url!,
-            statusCode: 200,
-            httpVersion: nil,
-            headerFields: nil
-        )!
-        
-        return (data, response)
-    }
-    
-    func validateResponse(_ response: (Data, URLResponse)) throws {
-        // No validation
-    }
-    
-    // MARK: -
+
     func dispatch(urlRequest: URLRequest) async throws -> Data {
         var mutableRequest = urlRequest
         configureRequest(&mutableRequest)
