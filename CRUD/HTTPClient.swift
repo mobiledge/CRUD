@@ -126,7 +126,7 @@ actor NetworkService {
         
         NetworkService.logger.info("Dispatch: \(mutableRequest.httpMethod ?? "N/A") \(mutableRequest.url?.absoluteString ?? "unknown URL")")
         
-        let (data, urlResponse) = try await URLSession.shared.data(for: mutableRequest)
+        let (data, urlResponse) = try await session.dispatch(mutableRequest)
         try validateResponse(data: data, urlResponse: urlResponse)
         return data
     }
@@ -142,11 +142,18 @@ actor NetworkService {
     
     private func validateResponse(data: Data, urlResponse: URLResponse) throws {
         guard let httpResponse = urlResponse as? HTTPURLResponse else {
-            NetworkService.logger.error("Error: Invalid HTTP response type. URL: \(urlResponse.url?.absoluteString ?? "N/A")")
+            NetworkService.logger.error("Invalid HTTP response type. URL: \(urlResponse.url?.absoluteString ?? "N/A")")
             throw HTTPError.badHTTPResponse
         }
+        
         guard (200..<300).contains(httpResponse.statusCode) else {
-            NetworkService.logger.error("Error: HTTP \(httpResponse.statusCode). URL: \(httpResponse.url?.absoluteString ?? "N/A"). Data: \(String(data: data, encoding: .utf8) ?? "Non-UTF8 data")")
+            let responseBody = String(data: data, encoding: .utf8) ?? "Non-UTF8 data"
+            NetworkService.logger.error("""
+                HTTP \(httpResponse.statusCode) - \(HTTPURLResponse.localizedString(forStatusCode: httpResponse.statusCode))
+                URL: \(httpResponse.url?.absoluteString ?? "N/A")
+                Headers: \(httpResponse.allHeaderFields)
+                Body: \(responseBody)
+                """)
             throw HTTPError.badStatusCode(httpResponse.statusCode)
         }
     }
