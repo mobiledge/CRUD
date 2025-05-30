@@ -101,8 +101,8 @@ extension URLRequest {
 // MARK: - NetworkService
 
 actor NetworkService {
-    let server: HTTPServer
-    let session: HTTPSession
+    private let server: HTTPServer
+    private let session: HTTPSession
     private static let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "NetworkService", category: "networking")
 
     private init(server: HTTPServer, session: HTTPSession) {
@@ -204,14 +204,14 @@ extension NetworkService: ProductNetworkService {
 
     private static let productLogger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "ProductNetworkService", category: "dataProcessing")
 
-    static let decoder: JSONDecoder = {
+    private static let decoder: JSONDecoder = {
         let decoder = JSONDecoder()
         decoder.keyDecodingStrategy = .convertFromSnakeCase
         decoder.dateDecodingStrategy = .iso8601
         return decoder
     }()
 
-    static let encoder: JSONEncoder = {
+    private static let encoder: JSONEncoder = {
         let encoder = JSONEncoder()
         encoder.keyEncodingStrategy = .convertToSnakeCase
         encoder.dateEncodingStrategy = .iso8601
