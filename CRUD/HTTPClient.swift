@@ -74,52 +74,6 @@ struct HTTPSession {
     }
 }
 
-// MARK: - HTTPResponse
-struct HTTPResponse {
-    let body: HTTPResponseBody
-    let response: HTTPURLResponse
-
-    init(body: HTTPRequestBody, response: HTTPURLResponse) {
-        self.body = body
-        self.response = response
-    }
-
-    init(body: HTTPRequestBody, urlResponse: URLResponse) throws {
-        guard let response = urlResponse as? HTTPURLResponse else {
-            throw HTTPResponseError.failedToCastToHTTPURLResponse
-        }
-        self.init(body: body, response: response)
-    }
-
-    /// Throws if the status code is not in the 200–299 range.
-    func validateStatusCode() throws {
-        guard (200...299).contains(response.statusCode) else {
-            throw HTTPResponseError.invalidStatusCode(code: response.statusCode)
-        }
-    }
-
-    enum HTTPResponseError: Error, LocalizedError {
-        case failedToCastToHTTPURLResponse
-        case invalidStatusCode(code: Int)
-
-        var errorDescription: String? {
-            switch self {
-            case .failedToCastToHTTPURLResponse:
-                return "Failed to cast URLResponse to HTTPURLResponse."
-            case .invalidStatusCode(let code):
-                return "Invalid HTTP status code: \(code)"
-            }
-        }
-    }
-}
-
-// MARK: - HTTPResponseBody
-extension HTTPResponseBody {
-    func decoded<T>(as type: T.Type, decoder: JSONDecoder = JSONDecoder()) throws -> T where T : Decodable {
-        try decoder.decode(type, from: self)
-    }
-}
-
 
 // MARK: - HTTPError
 
@@ -149,28 +103,114 @@ extension URLRequest {
     }
 }
 
-// MARK: - NetworkService
+// MARK: - Middleware Definitions
+struct NetworkRequestMiddleware {
+    var configureRequest: (inout URLRequest) throws -> Void
+}
 
+extension NetworkRequestMiddleware {
+    static func logRequest() -> NetworkRequestMiddleware {
+        NetworkRequestMiddleware { request in
+            print("\n--- Network Request ---")
+            print("URL: \(request.url?.absoluteString ?? "N/A")")
+            print("Method: \(request.httpMethod ?? "N/A")")
+            print("Headers: \(request.allHTTPHeaderFields ?? [:])")
+            if let data = request.httpBody, let dataString = String(data: data, encoding: .utf8) {
+                print("Body: \(dataString)")
+            }
+            print("---------------------\n")
+        }
+    }
+    
+    static func logRequestCompact() -> NetworkRequestMiddleware {
+        NetworkRequestMiddleware { request in
+            print("➡️ \(request.httpMethod ?? "N/A") \(request.url?.absoluteString ?? "N/A")")
+        }
+    }
+
+    static func jsonHeaders() -> NetworkRequestMiddleware {
+        NetworkRequestMiddleware { request in
+            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            request.setValue("application/json", forHTTPHeaderField: "Accept")
+        }
+    }
+}
+
+struct NetworkResponseMiddleware {
+    var processResponse: (inout (Data, URLResponse)) throws -> Void
+}
+
+extension NetworkResponseMiddleware {
+    static func validateHTTPStatusCode() -> NetworkResponseMiddleware {
+        NetworkResponseMiddleware { result in
+            guard let httpResponse = result.1 as? HTTPURLResponse else {
+                throw ValidationError.invalidResponse
+            }
+            let validRange: ClosedRange<Int> = 200...299
+            guard validRange.contains(httpResponse.statusCode) else {
+                throw ValidationError.badStatusCode(httpResponse.statusCode)
+            }
+        }
+    }
+
+    static func logResponse() -> NetworkResponseMiddleware {
+        NetworkResponseMiddleware { result in
+            if let httpResponse = result.1 as? HTTPURLResponse {
+                print("\n--- Network Response ---")
+                print("URL: \(httpResponse.url?.absoluteString ?? "N/A")")
+                print("Status Code: \(httpResponse.statusCode)")
+                print("Headers: \(httpResponse.allHeaderFields)")
+                if let dataString = String(data: result.0, encoding: .utf8) {
+                    print("Body: \(dataString)")
+                }
+                print("----------------------\n")
+            }
+        }
+    }
+    
+    static func logResponseCompact() -> NetworkResponseMiddleware {
+        NetworkResponseMiddleware { result in
+            if let response = result.1 as? HTTPURLResponse {
+                print("⬅️ \(response.statusCode) \(response.url?.absoluteString ?? "N/A")")
+            }
+        }
+    }
+    
+    enum ValidationError: Error, LocalizedError {
+        case invalidResponse
+        case badStatusCode(Int)
+
+        var errorDescription: String? {
+            switch self {
+            case .invalidResponse:
+                return "The server returned an invalid or non-HTTP response."
+            case .badStatusCode(let statusCode):
+                return "The server responded with an unsuccessful status code: \(statusCode)."
+            }
+        }
+    }
+}
+
+// MARK: - NetworkService
 actor NetworkService {
     private let server: HTTPServer
     private let session: HTTPSession
+    private let requestMiddlewares: [NetworkRequestMiddleware]
+    private let responseMiddlewares: [NetworkResponseMiddleware]
+    
+    
     private static let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "NetworkService", category: "networking")
-
-    private init(server: HTTPServer, session: HTTPSession) {
+    
+    init(
+        server: HTTPServer,
+        session: HTTPSession,
+        requestMiddlewares: [NetworkRequestMiddleware] = [],
+        responseMiddlewares: [NetworkResponseMiddleware] = []
+    ) {
         self.server = server
         self.session = session
-    }
-    
-    func dispatch(urlRequest: URLRequest) async throws -> HTTPResponseBody {
-        var mutableRequest = urlRequest
-        configureRequest(&mutableRequest)
-        
-        NetworkService.logger.info("Dispatch: \(mutableRequest.httpMethod ?? "N/A") \(mutableRequest.url?.absoluteString ?? "unknown URL")")
-        
-        let (data, urlResponse) = try await session.dispatch(mutableRequest)
-        let response = try HTTPResponse(body: data, urlResponse: urlResponse)
-        try response.validateStatusCode()
-        return response.body
+        self.requestMiddlewares = requestMiddlewares
+        self.responseMiddlewares = responseMiddlewares
     }
     
     private func configureRequest(_ request: inout URLRequest) {
@@ -186,33 +226,60 @@ actor NetworkService {
             request.setValue("application/json", forHTTPHeaderField: "Accept")
         }
     }
+    
+    func dispatch(urlRequest: URLRequest) async throws -> (Data, URLResponse) {
+        var mutableRequest = urlRequest
+
+        for middleware in requestMiddlewares {
+            try middleware.configureRequest(&mutableRequest)
+        }
+
+        var result = try await URLSession.shared.data(for: mutableRequest)
+
+        for middleware in responseMiddlewares {
+            try middleware.processResponse(&result)
+        }
+
+        return result
+    }
 }
 
 extension NetworkService {
     func get(path: HTTPPath, headers: [String: String]? = nil) async throws -> Data {
         let request = URLRequest(server: self.server, path: path, method: .get, headers: headers)
-        return try await dispatch(urlRequest: request)
+        return try await dispatch(urlRequest: request).0
     }
     
     func post(path: HTTPPath, headers: [String: String]? = nil, body: HTTPRequestBody) async throws -> Data {
         let request = URLRequest(server: self.server, path: path, method: .post, headers: headers, body: body)
-        return try await dispatch(urlRequest: request)
+        return try await dispatch(urlRequest: request).0
     }
     
     func put(path: HTTPPath, headers: [String: String]? = nil, body: HTTPRequestBody) async throws -> Data {
         let request = URLRequest(server: self.server, path: path, method: .put, headers: headers, body: body)
-        return try await dispatch(urlRequest: request)
+        return try await dispatch(urlRequest: request).0
     }
     
     func delete(path: HTTPPath, headers: [String: String]? = nil) async throws -> Data {
         let request = URLRequest(server: self.server, path: path, method: .delete, headers: headers)
-        return try await dispatch(urlRequest: request)
+        return try await dispatch(urlRequest: request).0
     }
 }
 
 extension NetworkService {
     static func live(server: HTTPServer) -> NetworkService {
-        NetworkService(server: server, session: .live())
+        NetworkService(
+            server: server,
+            session: .live(),
+            requestMiddlewares: [
+                .jsonHeaders(),
+                .logRequestCompact()
+            ],
+            responseMiddlewares: [
+                .logResponseCompact(),
+                .validateHTTPStatusCode()
+            ]
+        )
     }
     static func mockSuccess(data: Data, urlResponse: URLResponse) -> NetworkService {
         NetworkService(server: .mock, session: .mockSuccess(data: data, urlResponse: urlResponse))
