@@ -155,27 +155,6 @@ enum HTTPError: Error, Equatable { // Equatable for easier testing
     case custom(reason: String)
 }
 
-// MARK: - URLRequest Extensions
-
-extension URLRequest {
-    init(
-        server: HTTPServer,
-        path: HTTPPath,
-        method: HTTPMethod = .get,
-        headers: [String: String]? = nil,
-        body: HTTPRequestBody? = nil
-    ) {
-        let fullURL = server.url.appending(path: path) // In Swift 5.7+ path: is deprecated, use appendingPathComponent
-        // For broader compatibility or older Swift versions, appendingPathComponent might be better:
-        // let fullURL = server.url.appendingPathComponent(path)
-        
-        self.init(url: fullURL)
-        self.httpMethod = method.rawValue
-        self.httpBody = body
-        headers?.forEach { self.setValue($1, forHTTPHeaderField: $0) }
-    }
-}
-
 // MARK: - Middleware Definitions
 struct NetworkRequestMiddleware {
     var configureRequest: (inout URLRequest) throws -> Void
