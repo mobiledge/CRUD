@@ -1,10 +1,14 @@
 import Foundation
 import os.log
 
+// https://davedelong.com/blog/2020/06/27/http-in-swift-part-1/
+// https://github.com/davedelong/extendedswift/tree/main/Sources/HTTP
+
 // MARK: - Typealiases
 
 typealias HTTPPath = String
-typealias HTTPBody = Data
+typealias HTTPRequestBody = Data
+typealias HTTPResponseBody = Data
 
 // MARK: - HTTPMethod
 
@@ -70,6 +74,53 @@ struct HTTPSession {
     }
 }
 
+// MARK: - HTTPResponse
+struct HTTPResponse {
+    let body: HTTPResponseBody
+    let response: HTTPURLResponse
+
+    init(body: HTTPRequestBody, response: HTTPURLResponse) {
+        self.body = body
+        self.response = response
+    }
+
+    init(body: HTTPRequestBody, urlResponse: URLResponse) throws {
+        guard let response = urlResponse as? HTTPURLResponse else {
+            throw HTTPResponseError.failedToCastToHTTPURLResponse
+        }
+        self.init(body: body, response: response)
+    }
+
+    /// Throws if the status code is not in the 200–299 range.
+    func validateStatusCode() throws {
+        guard (200...299).contains(response.statusCode) else {
+            throw HTTPResponseError.invalidStatusCode(code: response.statusCode)
+        }
+    }
+
+    enum HTTPResponseError: Error, LocalizedError {
+        case failedToCastToHTTPURLResponse
+        case invalidStatusCode(code: Int)
+
+        var errorDescription: String? {
+            switch self {
+            case .failedToCastToHTTPURLResponse:
+                return "Failed to cast URLResponse to HTTPURLResponse."
+            case .invalidStatusCode(let code):
+                return "Invalid HTTP status code: \(code)"
+            }
+        }
+    }
+}
+
+// MARK: - HTTPResponseBody
+extension HTTPResponseBody {
+    func decoded<T>(as type: T.Type, decoder: JSONDecoder = JSONDecoder()) throws -> T where T : Decodable {
+        try decoder.decode(type, from: self)
+    }
+}
+
+
 // MARK: - HTTPError
 
 enum HTTPError: Error, Equatable { // Equatable for easier testing
@@ -85,7 +136,7 @@ extension URLRequest {
         path: HTTPPath,
         method: HTTPMethod = .get,
         headers: [String: String]? = nil,
-        body: HTTPBody? = nil
+        body: HTTPRequestBody? = nil
     ) {
         let fullURL = server.url.appending(path: path) // In Swift 5.7+ path: is deprecated, use appendingPathComponent
         // For broader compatibility or older Swift versions, appendingPathComponent might be better:
@@ -110,6 +161,56 @@ actor NetworkService {
         self.session = session
     }
     
+    func dispatch(urlRequest: URLRequest) async throws -> HTTPResponseBody {
+        var mutableRequest = urlRequest
+        configureRequest(&mutableRequest)
+        
+        NetworkService.logger.info("Dispatch: \(mutableRequest.httpMethod ?? "N/A") \(mutableRequest.url?.absoluteString ?? "unknown URL")")
+        
+        let (data, urlResponse) = try await session.dispatch(mutableRequest)
+        let response = try HTTPResponse(body: data, urlResponse: urlResponse)
+        try response.validateStatusCode()
+        return response.body
+    }
+    
+    private func configureRequest(_ request: inout URLRequest) {
+        // Content-Type: What I'm Sending You
+        // Specifies the media type of the resource in the body of the HTTP message.
+        if request.value(forHTTPHeaderField: "Content-Type") == nil {
+            request.setValue("application/json; charset=utf-8", forHTTPHeaderField: "Content-Type")
+        }
+        
+        // "Accept": What I Can Understand
+        // Indicates what media types the client is capable of understanding and willing to receive in the response.
+        if request.value(forHTTPHeaderField: "Accept") == nil {
+            request.setValue("application/json", forHTTPHeaderField: "Accept")
+        }
+    }
+}
+
+extension NetworkService {
+    func get(path: HTTPPath, headers: [String: String]? = nil) async throws -> Data {
+        let request = URLRequest(server: self.server, path: path, method: .get, headers: headers)
+        return try await dispatch(urlRequest: request)
+    }
+    
+    func post(path: HTTPPath, headers: [String: String]? = nil, body: HTTPRequestBody) async throws -> Data {
+        let request = URLRequest(server: self.server, path: path, method: .post, headers: headers, body: body)
+        return try await dispatch(urlRequest: request)
+    }
+    
+    func put(path: HTTPPath, headers: [String: String]? = nil, body: HTTPRequestBody) async throws -> Data {
+        let request = URLRequest(server: self.server, path: path, method: .put, headers: headers, body: body)
+        return try await dispatch(urlRequest: request)
+    }
+    
+    func delete(path: HTTPPath, headers: [String: String]? = nil) async throws -> Data {
+        let request = URLRequest(server: self.server, path: path, method: .delete, headers: headers)
+        return try await dispatch(urlRequest: request)
+    }
+}
+
+extension NetworkService {
     static func live(server: HTTPServer) -> NetworkService {
         NetworkService(server: server, session: .live())
     }
@@ -118,67 +219,6 @@ actor NetworkService {
     }
     static func mockError(_ error: Error) -> NetworkService {
         NetworkService(server: .mock, session: .mockError(error))
-    }
-
-    func dispatch(urlRequest: URLRequest) async throws -> Data {
-        var mutableRequest = urlRequest
-        configureRequest(&mutableRequest)
-        
-        NetworkService.logger.info("Dispatch: \(mutableRequest.httpMethod ?? "N/A") \(mutableRequest.url?.absoluteString ?? "unknown URL")")
-        
-        let (data, urlResponse) = try await session.dispatch(mutableRequest)
-        try validateResponse(data: data, urlResponse: urlResponse)
-        return data
-    }
-    
-    private func configureRequest(_ request: inout URLRequest) {
-        if request.value(forHTTPHeaderField: "Content-Type") == nil {
-            request.setValue("application/json; charset=utf-8", forHTTPHeaderField: "Content-Type")
-        }
-        if request.value(forHTTPHeaderField: "Accept") == nil {
-            request.setValue("application/json", forHTTPHeaderField: "Accept")
-        }
-    }
-    
-    private func validateResponse(data: Data, urlResponse: URLResponse) throws {
-        guard let httpResponse = urlResponse as? HTTPURLResponse else {
-            NetworkService.logger.error("Invalid HTTP response type. URL: \(urlResponse.url?.absoluteString ?? "N/A")")
-            throw HTTPError.badHTTPResponse
-        }
-        
-        guard (200..<300).contains(httpResponse.statusCode) else {
-            let responseBody = String(data: data, encoding: .utf8) ?? "Non-UTF8 data"
-            NetworkService.logger.error("""
-                HTTP \(httpResponse.statusCode) - \(HTTPURLResponse.localizedString(forStatusCode: httpResponse.statusCode))
-                URL: \(httpResponse.url?.absoluteString ?? "N/A")
-                Headers: \(httpResponse.allHeaderFields)
-                Body: \(responseBody)
-                """)
-            throw HTTPError.badStatusCode(httpResponse.statusCode)
-        }
-    }
-}
-
-extension NetworkService {
-    
-    func get(path: HTTPPath, headers: [String: String]? = nil) async throws -> Data {
-        let request = URLRequest(server: self.server, path: path, method: .get, headers: headers)
-        return try await dispatch(urlRequest: request)
-    }
-    
-    func post(path: HTTPPath, headers: [String: String]? = nil, body: HTTPBody) async throws -> Data {
-        let request = URLRequest(server: self.server, path: path, method: .post, headers: headers, body: body)
-        return try await dispatch(urlRequest: request)
-    }
-    
-    func put(path: HTTPPath, headers: [String: String]? = nil, body: HTTPBody) async throws -> Data {
-        let request = URLRequest(server: self.server, path: path, method: .put, headers: headers, body: body)
-        return try await dispatch(urlRequest: request)
-    }
-    
-    func delete(path: HTTPPath, headers: [String: String]? = nil) async throws -> Data {
-        let request = URLRequest(server: self.server, path: path, method: .delete, headers: headers)
-        return try await dispatch(urlRequest: request)
     }
 }
 
