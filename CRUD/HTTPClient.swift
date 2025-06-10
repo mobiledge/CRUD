@@ -120,20 +120,19 @@ struct HTTPRequest {
     
     // MARK: -
     func generateURLRequest() throws -> URLRequest {
-        
         guard let server = server else {
-            throw HTTPError.invalidBaseURL
+            throw HTTPError.custom(reason: "Missing server in HTTPRequest.generateURLRequest()")
         }
         
         let fullURL = server.url.appendingPathComponent(urlComponents.path)
 
         guard var components = URLComponents(url: fullURL, resolvingAgainstBaseURL: true) else {
-            throw HTTPError.invalidBaseURL
+            throw HTTPError.custom(reason: "Failed to resolve URLComponents from \(fullURL) in HTTPRequest.generateURLRequest()")
         }
         components.queryItems = urlComponents.queryItems
 
         guard let finalURL = components.url else {
-            throw HTTPError.invalidFinalURL
+            throw HTTPError.custom(reason: "Failed to construct final URL from URLComponents in HTTPRequest.generateURLRequest()")
         }
 
         var urlRequest = URLRequest(url: finalURL)
@@ -151,10 +150,9 @@ struct HTTPRequest {
 // MARK: - HTTPError
 
 enum HTTPError: Error, Equatable { // Equatable for easier testing
-    case invalidBaseURL
-    case invalidFinalURL
     case badHTTPResponse
     case badStatusCode(Int)
+    case custom(reason: String)
 }
 
 // MARK: - URLRequest Extensions
@@ -301,7 +299,7 @@ actor NetworkService {
             try middleware.configureRequest(&mutableRequest)
         }
 
-        var result = try await URLSession.shared.data(for: mutableRequest)
+        var result = try await session.dispatch(mutableRequest)
 
         for middleware in responseMiddlewares {
             try middleware.processResponse(&result)
