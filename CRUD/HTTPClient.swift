@@ -414,7 +414,7 @@ extension NetworkService: ProductNetworkService {
     }
 
     func delete(_ id: Int) async throws {
-        let request = HTTPRequest.get(path: "products/\(id)")
+        let request = HTTPRequest.delete(path: "products/\(id)")
         _ = try await dispatch(request: request)
     }
 }
