@@ -5,8 +5,6 @@ import os.log
 // https://github.com/davedelong/extendedswift/tree/main/Sources/HTTP
 
 // MARK: - Typealiases
-
-typealias HTTPPath = String
 typealias HTTPRequestBody = Data
 
 // MARK: - HTTPMethod
@@ -74,85 +72,125 @@ struct HTTPSession {
 }
 
 // MARK: - HTTPRequest
-
 struct HTTPRequest {
+    /// If server is not set, `NetworkService` is responsible for assigning a default server during dispatch.
     var server: HTTPServer? = nil
     var urlComponents = URLComponents()
     var method: HTTPMethod = .get
     var headers: [String: String] = [:]
     var body: HTTPRequestBody?
 
+    // MARK: - Fluent Interface
+
+    func server(_ server: HTTPServer) -> Self {
+        var copy = self
+        copy.server = server
+        return copy
+    }
+
+    func path(_ path: String) -> Self {
+        var copy = self
+        copy.urlComponents.path = path
+        return copy
+    }
+
+    func queryItems(_ items: [URLQueryItem]) -> Self {
+        var copy = self
+        copy.urlComponents.queryItems = items
+        return copy
+    }
+
+    func method(_ method: HTTPMethod) -> Self {
+        var copy = self
+        copy.method = method
+        return copy
+    }
+
+    func header(key: String, value: String) -> Self {
+        var copy = self
+        copy.headers[key] = value
+        return copy
+    }
+
+    func headers(_ headers: [String: String]) -> Self {
+        var copy = self
+        for (key, value) in headers {
+            copy.headers[key] = value
+        }
+        return copy
+    }
+
+    func body(_ body: HTTPRequestBody?) -> Self {
+        var copy = self
+        copy.body = body
+        return copy
+    }
+
     // MARK: - Static Helper Methods
 
-    static func get(path: HTTPPath, headers: [String: String] = [:]) -> HTTPRequest {
-        var request = HTTPRequest()
-        request.urlComponents.path = path
-        request.method = .get
-        request.headers = headers
-        return request
+    static func get(path: String) -> HTTPRequest {
+        HTTPRequest()
+            .method(.get)
+            .path(path)
     }
 
-    static func post(path: HTTPPath, body: HTTPRequestBody?, headers: [String: String] = [:]) -> HTTPRequest {
-        var request = HTTPRequest()
-        request.urlComponents.path = path
-        request.method = .post
-        request.headers = headers
-        request.body = body
-        return request
+    static func post(path: String, body: HTTPRequestBody?) -> HTTPRequest {
+        HTTPRequest()
+            .method(.post)
+            .path(path)
+            .body(body)
     }
 
-    static func put(path: HTTPPath, body: HTTPRequestBody?, headers: [String: String] = [:]) -> HTTPRequest {
-        var request = HTTPRequest()
-        request.urlComponents.path = path
-        request.method = .put
-        request.headers = headers
-        request.body = body
-        return request
+    static func put(path: String, body: HTTPRequestBody?) -> HTTPRequest {
+        HTTPRequest()
+            .method(.put)
+            .path(path)
+            .body(body)
     }
 
-    static func delete(path: HTTPPath, headers: [String: String] = [:]) -> HTTPRequest {
-        var request = HTTPRequest()
-        request.urlComponents.path = path
-        request.method = .delete
-        request.headers = headers
-        return request
+    static func delete(path: String) -> HTTPRequest {
+        HTTPRequest()
+            .method(.delete)
+            .path(path)
     }
-    
-    // MARK: -
+
+    // MARK: - URLRequest Generation
+
     func generateURLRequest() throws -> URLRequest {
         guard let server = server else {
-            throw HTTPError.custom(reason: "Missing server in HTTPRequest.generateURLRequest()")
+            throw HTTPError.badRequest(reason: "Server not set for the request.")
         }
-        
-        let fullURL = server.url.appendingPathComponent(urlComponents.path)
 
-        guard var components = URLComponents(url: fullURL, resolvingAgainstBaseURL: true) else {
-            throw HTTPError.custom(reason: "Failed to resolve URLComponents from \(fullURL) in HTTPRequest.generateURLRequest()")
+        guard var components = URLComponents(url: server.url, resolvingAgainstBaseURL: true) else {
+            throw HTTPError.invalidServerURL
         }
-        components.queryItems = urlComponents.queryItems
+
+        components.path += urlComponents.path
+        if let queryItems = urlComponents.queryItems {
+            components.queryItems = (components.queryItems ?? []) + queryItems
+        }
 
         guard let finalURL = components.url else {
-            throw HTTPError.custom(reason: "Failed to construct final URL from URLComponents in HTTPRequest.generateURLRequest()")
+            throw HTTPError.badRequest(reason: "Failed to construct the final URL.")
         }
 
         var urlRequest = URLRequest(url: finalURL)
         urlRequest.httpMethod = method.rawValue
         urlRequest.httpBody = body
-
-        for (headerField, value) in headers {
-            urlRequest.setValue(value, forHTTPHeaderField: headerField)
-        }
+        urlRequest.allHTTPHeaderFields = headers
 
         return urlRequest
     }
 }
 
+
 // MARK: - HTTPError
 
 enum HTTPError: Error, Equatable { // Equatable for easier testing
+    case invalidServerURL
+    case badRequest(reason: String)
     case badHTTPResponse
     case badStatusCode(Int)
-    case custom(reason: String)
 }
 
 // MARK: - Middleware Definitions
@@ -196,11 +234,11 @@ extension NetworkResponseMiddleware {
     static func validateHTTPStatusCode() -> NetworkResponseMiddleware {
         NetworkResponseMiddleware { result in
             guard let httpResponse = result.1 as? HTTPURLResponse else {
-                throw ValidationError.invalidResponse
+                throw HTTPError.badHTTPResponse
             }
             let validRange: ClosedRange<Int> = 200...299
             guard validRange.contains(httpResponse.statusCode) else {
-                throw ValidationError.badStatusCode(httpResponse.statusCode)
+                throw HTTPError.badStatusCode(httpResponse.statusCode)
             }
         }
     }
@@ -224,20 +262,6 @@ extension NetworkResponseMiddleware {
         NetworkResponseMiddleware { result in
             if let response = result.1 as? HTTPURLResponse {
                 print("⬅️ \(response.statusCode) \(response.url?.absoluteString ?? "N/A")")
-            }
-        }
-    }
-    
-    enum ValidationError: Error, LocalizedError {
-        case invalidResponse
-        case badStatusCode(Int)
-
-        var errorDescription: String? {
-            switch self {
-            case .invalidResponse:
-                return "The server returned an invalid or non-HTTP response."
-            case .badStatusCode(let statusCode):
-                return "The server responded with an unsuccessful status code: \(statusCode)."
             }
         }
     }
