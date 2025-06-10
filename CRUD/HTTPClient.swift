@@ -38,20 +38,9 @@ struct HTTPServer {
 struct HTTPSession {
     var dispatch: (URLRequest) async throws -> (Data, URLResponse)
 
-    private static let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "HTTPSession", category: "networking")
-
     static func live(session: URLSession = .shared) -> HTTPSession {
         HTTPSession { request in
-            do {
-                logger.info("Making HTTP request to: \(request.url?.absoluteString ?? "unknown URL")")
-                let (data, response) = try await session.data(for: request)
-                logger.info("HTTP request successful, received \(data.count) bytes")
-                return (data, response)
-
-            } catch {
-                logger.error("HTTP request failed with error: \(error.localizedDescription)")
-                throw error
-            }
+            try await session.data(for: request)
         }
     }
 
@@ -281,9 +270,6 @@ actor NetworkService {
     private let session: HTTPSession
     private let requestMiddlewares: [NetworkRequestMiddleware]
     private let responseMiddlewares: [NetworkResponseMiddleware]
-
-
-    private static let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "NetworkService", category: "networking")
 
     init(
         server: HTTPServer,
