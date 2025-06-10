@@ -8,7 +8,6 @@ import os.log
 
 typealias HTTPPath = String
 typealias HTTPRequestBody = Data
-typealias HTTPResponseBody = Data
 
 // MARK: - HTTPMethod
 
@@ -74,10 +73,86 @@ struct HTTPSession {
     }
 }
 
+// MARK: - HTTPRequest
+
+struct HTTPRequest {
+    var server: HTTPServer? = nil
+    var urlComponents = URLComponents()
+    var method: HTTPMethod = .get
+    var headers: [String: String] = [:]
+    var body: HTTPRequestBody?
+
+    // MARK: - Static Helper Methods
+
+    static func get(path: HTTPPath, headers: [String: String] = [:]) -> HTTPRequest {
+        var request = HTTPRequest()
+        request.urlComponents.path = path
+        request.method = .get
+        request.headers = headers
+        return request
+    }
+
+    static func post(path: HTTPPath, body: HTTPRequestBody?, headers: [String: String] = [:]) -> HTTPRequest {
+        var request = HTTPRequest()
+        request.urlComponents.path = path
+        request.method = .post
+        request.headers = headers
+        request.body = body
+        return request
+    }
+
+    static func put(path: HTTPPath, body: HTTPRequestBody?, headers: [String: String] = [:]) -> HTTPRequest {
+        var request = HTTPRequest()
+        request.urlComponents.path = path
+        request.method = .put
+        request.headers = headers
+        request.body = body
+        return request
+    }
+
+    static func delete(path: HTTPPath, headers: [String: String] = [:]) -> HTTPRequest {
+        var request = HTTPRequest()
+        request.urlComponents.path = path
+        request.method = .delete
+        request.headers = headers
+        return request
+    }
+    
+    // MARK: -
+    func generateURLRequest() throws -> URLRequest {
+        
+        guard let server = server else {
+            throw HTTPError.invalidBaseURL
+        }
+        
+        let fullURL = server.url.appendingPathComponent(urlComponents.path)
+
+        guard var components = URLComponents(url: fullURL, resolvingAgainstBaseURL: true) else {
+            throw HTTPError.invalidBaseURL
+        }
+        components.queryItems = urlComponents.queryItems
+
+        guard let finalURL = components.url else {
+            throw HTTPError.invalidFinalURL
+        }
+
+        var urlRequest = URLRequest(url: finalURL)
+        urlRequest.httpMethod = method.rawValue
+        urlRequest.httpBody = body
+
+        for (headerField, value) in headers {
+            urlRequest.setValue(value, forHTTPHeaderField: headerField)
+        }
+
+        return urlRequest
+    }
+}
 
 // MARK: - HTTPError
 
 enum HTTPError: Error, Equatable { // Equatable for easier testing
+    case invalidBaseURL
+    case invalidFinalURL
     case badHTTPResponse
     case badStatusCode(Int)
 }
@@ -213,22 +288,14 @@ actor NetworkService {
         self.responseMiddlewares = responseMiddlewares
     }
     
-    private func configureRequest(_ request: inout URLRequest) {
-        // Content-Type: What I'm Sending You
-        // Specifies the media type of the resource in the body of the HTTP message.
-        if request.value(forHTTPHeaderField: "Content-Type") == nil {
-            request.setValue("application/json; charset=utf-8", forHTTPHeaderField: "Content-Type")
+    func dispatch(request: HTTPRequest) async throws -> (Data, URLResponse) {
+        
+        var req = request
+        if req.server == nil {
+            req.server = server
         }
         
-        // "Accept": What I Can Understand
-        // Indicates what media types the client is capable of understanding and willing to receive in the response.
-        if request.value(forHTTPHeaderField: "Accept") == nil {
-            request.setValue("application/json", forHTTPHeaderField: "Accept")
-        }
-    }
-    
-    func dispatch(urlRequest: URLRequest) async throws -> (Data, URLResponse) {
-        var mutableRequest = urlRequest
+        var mutableRequest = try req.generateURLRequest()
 
         for middleware in requestMiddlewares {
             try middleware.configureRequest(&mutableRequest)
@@ -241,28 +308,6 @@ actor NetworkService {
         }
 
         return result
-    }
-}
-
-extension NetworkService {
-    func get(path: HTTPPath, headers: [String: String]? = nil) async throws -> Data {
-        let request = URLRequest(server: self.server, path: path, method: .get, headers: headers)
-        return try await dispatch(urlRequest: request).0
-    }
-    
-    func post(path: HTTPPath, headers: [String: String]? = nil, body: HTTPRequestBody) async throws -> Data {
-        let request = URLRequest(server: self.server, path: path, method: .post, headers: headers, body: body)
-        return try await dispatch(urlRequest: request).0
-    }
-    
-    func put(path: HTTPPath, headers: [String: String]? = nil, body: HTTPRequestBody) async throws -> Data {
-        let request = URLRequest(server: self.server, path: path, method: .put, headers: headers, body: body)
-        return try await dispatch(urlRequest: request).0
-    }
-    
-    func delete(path: HTTPPath, headers: [String: String]? = nil) async throws -> Data {
-        let request = URLRequest(server: self.server, path: path, method: .delete, headers: headers)
-        return try await dispatch(urlRequest: request).0
     }
 }
 
@@ -348,29 +393,34 @@ extension NetworkService: ProductNetworkService {
     // MARK: - Product CRUD Methods
     
     func fetchAll() async throws -> [Product] {
-        let data = try await get(path: "products")
+        let request = HTTPRequest.get(path: "products")
+        let data = try await dispatch(request: request).0
         return try Self.decode(data, as: [Product].self, context: "[Product]")
     }
 
     func fetchById(_ id: Int) async throws -> Product {
-        let data = try await get(path: "products/\(id)")
+        let request = HTTPRequest.get(path: "products/\(id)")
+        let data = try await dispatch(request: request).0
         return try Self.decode(data, as: Product.self, context: "Product id \(id)")
     }
     
     func create(_ product: Product) async throws -> Product {
-        let productData = try Self.encode(product, context: "product for creation")
-        let responseData = try await post(path: "products", body: productData)
-        return try Self.decode(responseData, as: Product.self, context: "created Product")
+        let productPayload = try Self.encode(product, context: "product for creation")
+        let request = HTTPRequest.post(path: "products", body: productPayload)
+        let data = try await dispatch(request: request).0
+        return try Self.decode(data, as: Product.self, context: "created Product")
     }
 
     func update(_ product: Product) async throws -> Product {
         let productPayload = try Self.encode(product, context: "product for update")
-        let responseData = try await put(path: "products/\(product.id)", body: productPayload)
-        return try Self.decode(responseData, as: Product.self, context: "updated Product id \(product.id)")
+        let request = HTTPRequest.put(path: "products/\(product.id)", body: productPayload)
+        let data = try await dispatch(request: request).0
+        return try Self.decode(data, as: Product.self, context: "updated Product id \(product.id)")
     }
 
     func delete(_ id: Int) async throws {
-        _ = try await delete(path: "products/\(id)")
+        let request = HTTPRequest.get(path: "products/\(id)")
+        _ = try await dispatch(request: request)
     }
 }
 

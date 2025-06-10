@@ -304,6 +304,9 @@ extension ErrorViewModel {
                     description = "An unexpected issue occurred while trying to connect. Please try again. (Error code: \(statusCode))"
                 }
             }
+            
+        default:
+            description = "An unexpected issue occurred while trying to connect. Please try again."
         }
         self.init(systemImageName: imageName, description: description)
     }
