@@ -4,9 +4,6 @@ import os.log
 // https://davedelong.com/blog/2020/06/27/http-in-swift-part-1/
 // https://github.com/davedelong/extendedswift/tree/main/Sources/HTTP
 
-// MARK: - Typealiases
-typealias HTTPRequestBody = Data
-
 // MARK: - HTTPMethod
 
 enum HTTPMethod: String {
@@ -18,19 +15,19 @@ enum HTTPMethod: String {
 struct HTTPServer {
     let url: URL
     let description: String?
-    
+
     init(url: URL, description: String? = nil) {
         self.url = url
         self.description = description
     }
-    
+
     init(staticString: StaticString, description: String? = nil) {
         guard let url = URL(string: "\(staticString)") else {
             preconditionFailure("Invalid static URL: \(staticString)")
         }
         self.init(url: url, description: description)
     }
-    
+
     static let prod = HTTPServer(staticString: "https://dummyjson.com/", description: "Production")
     static let local = HTTPServer(staticString: "http://localhost:3000/", description: "Local Development")
     static let mock = HTTPServer(staticString: "https://mock.api/", description: "Mock")
@@ -40,9 +37,9 @@ struct HTTPServer {
 
 struct HTTPSession {
     var dispatch: (URLRequest) async throws -> (Data, URLResponse)
-    
+
     private static let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "HTTPSession", category: "networking")
-    
+
     static func live(session: URLSession = .shared) -> HTTPSession {
         HTTPSession { request in
             do {
@@ -50,20 +47,20 @@ struct HTTPSession {
                 let (data, response) = try await session.data(for: request)
                 logger.info("HTTP request successful, received \(data.count) bytes")
                 return (data, response)
-                
+
             } catch {
                 logger.error("HTTP request failed with error: \(error.localizedDescription)")
                 throw error
             }
         }
     }
-    
+
     static func mockError(_ error: Error) -> HTTPSession {
         HTTPSession { _ in
             throw error
         }
     }
-    
+
     static func mockSuccess(data: Data, urlResponse: URLResponse) -> HTTPSession {
         HTTPSession { _ in
             return (data, urlResponse)
@@ -72,13 +69,14 @@ struct HTTPSession {
 }
 
 // MARK: - HTTPRequest
+
 struct HTTPRequest {
     /// If server is not set, `NetworkService` is responsible for assigning a default server during dispatch.
     var server: HTTPServer? = nil
     var urlComponents = URLComponents()
     var method: HTTPMethod = .get
     var headers: [String: String] = [:]
-    var body: HTTPRequestBody?
+    var body: Data?
 
     // MARK: - Fluent Interface
 
@@ -120,7 +118,7 @@ struct HTTPRequest {
         return copy
     }
 
-    func body(_ body: HTTPRequestBody?) -> Self {
+    func body(_ body: Data?) -> Self {
         var copy = self
         copy.body = body
         return copy
@@ -134,14 +132,14 @@ struct HTTPRequest {
             .path(path)
     }
 
-    static func post(path: String, body: HTTPRequestBody?) -> HTTPRequest {
+    static func post(path: String, body: Data?) -> HTTPRequest {
         HTTPRequest()
             .method(.post)
             .path(path)
             .body(body)
     }
 
-    static func put(path: String, body: HTTPRequestBody?) -> HTTPRequest {
+    static func put(path: String, body: Data?) -> HTTPRequest {
         HTTPRequest()
             .method(.put)
             .path(path)
@@ -183,6 +181,13 @@ struct HTTPRequest {
     }
 }
 
+// MARK: - HTTPResponse
+
+struct HTTPResponse {
+    let data: Data
+    let response: URLResponse
+}
+
 
 // MARK: - HTTPError
 
@@ -195,45 +200,48 @@ enum HTTPError: Error, Equatable { // Equatable for easier testing
 
 // MARK: - Middleware Definitions
 struct NetworkRequestMiddleware {
-    var configureRequest: (inout URLRequest) throws -> Void
+    var configureRequest: (inout HTTPRequest) throws -> Void
 }
 
 extension NetworkRequestMiddleware {
     static func logRequest() -> NetworkRequestMiddleware {
         NetworkRequestMiddleware { request in
             print("\n--- Network Request ---")
-            print("URL: \(request.url?.absoluteString ?? "N/A")")
-            print("Method: \(request.httpMethod ?? "N/A")")
-            print("Headers: \(request.allHTTPHeaderFields ?? [:])")
-            if let data = request.httpBody, let dataString = String(data: data, encoding: .utf8) {
+            print("Server: \(request.server?.url.absoluteString ?? "N/A")")
+            print("Path: \(request.urlComponents.path)")
+            print("Method: \(request.method.rawValue)")
+            print("Headers: \(request.headers)")
+            if let data = request.body, let dataString = String(data: data, encoding: .utf8) {
                 print("Body: \(dataString)")
             }
             print("---------------------\n")
         }
     }
-    
+
     static func logRequestCompact() -> NetworkRequestMiddleware {
         NetworkRequestMiddleware { request in
-            print("➡️ \(request.httpMethod ?? "N/A") \(request.url?.absoluteString ?? "N/A")")
+            let serverURL = request.server?.url.absoluteString ?? ""
+            let fullPath = "\(serverURL)\(request.urlComponents.path)"
+            print("➡️ \(request.method.rawValue) \(fullPath)")
         }
     }
 
     static func jsonHeaders() -> NetworkRequestMiddleware {
         NetworkRequestMiddleware { request in
-            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-            request.setValue("application/json", forHTTPHeaderField: "Accept")
+            request.headers["Content-Type"] = "application/json"
+            request.headers["Accept"] = "application/json"
         }
     }
 }
 
 struct NetworkResponseMiddleware {
-    var processResponse: (inout (Data, URLResponse)) throws -> Void
+    var processResponse: (inout HTTPResponse) throws -> Void
 }
 
 extension NetworkResponseMiddleware {
     static func validateHTTPStatusCode() -> NetworkResponseMiddleware {
         NetworkResponseMiddleware { result in
-            guard let httpResponse = result.1 as? HTTPURLResponse else {
+            guard let httpResponse = result.response as? HTTPURLResponse else {
                 throw HTTPError.badHTTPResponse
             }
             let validRange: ClosedRange<Int> = 200...299
@@ -245,12 +253,12 @@ extension NetworkResponseMiddleware {
 
     static func logResponse() -> NetworkResponseMiddleware {
         NetworkResponseMiddleware { result in
-            if let httpResponse = result.1 as? HTTPURLResponse {
+            if let httpResponse = result.response as? HTTPURLResponse {
                 print("\n--- Network Response ---")
                 print("URL: \(httpResponse.url?.absoluteString ?? "N/A")")
                 print("Status Code: \(httpResponse.statusCode)")
                 print("Headers: \(httpResponse.allHeaderFields)")
-                if let dataString = String(data: result.0, encoding: .utf8) {
+                if let dataString = String(data: result.data, encoding: .utf8) {
                     print("Body: \(dataString)")
                 }
                 print("----------------------\n")
@@ -260,7 +268,7 @@ extension NetworkResponseMiddleware {
     
     static func logResponseCompact() -> NetworkResponseMiddleware {
         NetworkResponseMiddleware { result in
-            if let response = result.1 as? HTTPURLResponse {
+            if let response = result.response as? HTTPURLResponse {
                 print("⬅️ \(response.statusCode) \(response.url?.absoluteString ?? "N/A")")
             }
         }
@@ -273,10 +281,10 @@ actor NetworkService {
     private let session: HTTPSession
     private let requestMiddlewares: [NetworkRequestMiddleware]
     private let responseMiddlewares: [NetworkResponseMiddleware]
-    
-    
+
+
     private static let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "NetworkService", category: "networking")
-    
+
     init(
         server: HTTPServer,
         session: HTTPSession,
@@ -289,25 +297,33 @@ actor NetworkService {
         self.responseMiddlewares = responseMiddlewares
     }
     
-    func dispatch(request: HTTPRequest) async throws -> (Data, URLResponse) {
-        
+    func dispatch(request: HTTPRequest) async throws -> HTTPResponse {
+
         var req = request
         if req.server == nil {
             req.server = server
         }
-        
-        var mutableRequest = try req.generateURLRequest()
 
+        // 1. Apply request middlewares to the HTTPRequest
         for middleware in requestMiddlewares {
-            try middleware.configureRequest(&mutableRequest)
+            try middleware.configureRequest(&req)
         }
+        
+        // 2. Generate the URLRequest from the (potentially modified) HTTPRequest
+        let urlRequest = try req.generateURLRequest()
+        
+        // 3. Dispatch the URLRequest and get raw data and response
+        let (data, urlResponse) = try await session.dispatch(urlRequest)
 
-        var result = try await session.dispatch(mutableRequest)
-
+        // 4. Create an HTTPResponse object
+        var result = HTTPResponse(data: data, response: urlResponse)
+        
+        // 5. Apply response middlewares to the HTTPResponse
         for middleware in responseMiddlewares {
             try middleware.processResponse(&result)
         }
 
+        // 6. Return the final, processed HTTPResponse
         return result
     }
 }
@@ -355,68 +371,46 @@ extension ProductNetworkService {
 
 extension NetworkService: ProductNetworkService {
 
-    private static let productLogger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "ProductNetworkService", category: "dataProcessing")
-
-    private static let decoder: JSONDecoder = {
+    private var decoder: JSONDecoder {
         let decoder = JSONDecoder()
         decoder.keyDecodingStrategy = .convertFromSnakeCase
         decoder.dateDecodingStrategy = .iso8601
         return decoder
-    }()
+    }
 
-    private static let encoder: JSONEncoder = {
+    private var encoder: JSONEncoder {
         let encoder = JSONEncoder()
         encoder.keyEncodingStrategy = .convertToSnakeCase
         encoder.dateEncodingStrategy = .iso8601
         return encoder
-    }()
-
-    // MARK: - Private Encoding/Decoding Helpers
-    
-    private static func decode<T: Decodable>(_ data: Data, as type: T.Type, context: String) throws -> T {
-        do {
-            return try decoder.decode(type, from: data)
-        } catch {
-            productLogger.error("Error: Failed to decode \(context). \(error.localizedDescription)")
-            throw error
-        }
-    }
-
-    private static func encode<T: Encodable>(_ value: T, context: String) throws -> Data {
-        do {
-            return try encoder.encode(value)
-        } catch {
-            productLogger.error("Error: Failed to encode \(context). \(error.localizedDescription)")
-            throw error
-        }
     }
 
     // MARK: - Product CRUD Methods
     
     func fetchAll() async throws -> [Product] {
         let request = HTTPRequest.get(path: "products")
-        let data = try await dispatch(request: request).0
-        return try Self.decode(data, as: [Product].self, context: "[Product]")
+        let data = try await dispatch(request: request).data
+        return try decoder.decode([Product].self, from: data)
     }
 
     func fetchById(_ id: Int) async throws -> Product {
         let request = HTTPRequest.get(path: "products/\(id)")
-        let data = try await dispatch(request: request).0
-        return try Self.decode(data, as: Product.self, context: "Product id \(id)")
+        let data = try await dispatch(request: request).data
+        return try decoder.decode(Product.self, from: data)
     }
     
     func create(_ product: Product) async throws -> Product {
-        let productPayload = try Self.encode(product, context: "product for creation")
+        let productPayload = try encoder.encode(product)
         let request = HTTPRequest.post(path: "products", body: productPayload)
-        let data = try await dispatch(request: request).0
-        return try Self.decode(data, as: Product.self, context: "created Product")
+        let data = try await dispatch(request: request).data
+        return try decoder.decode(Product.self, from: data)
     }
 
     func update(_ product: Product) async throws -> Product {
-        let productPayload = try Self.encode(product, context: "product for update")
+        let productPayload = try encoder.encode(product)
         let request = HTTPRequest.put(path: "products/\(product.id)", body: productPayload)
-        let data = try await dispatch(request: request).0
-        return try Self.decode(data, as: Product.self, context: "updated Product id \(product.id)")
+        let data = try await dispatch(request: request).data
+        return try decoder.decode(Product.self, from: data)
     }
 
     func delete(_ id: Int) async throws {
