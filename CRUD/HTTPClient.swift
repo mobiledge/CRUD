@@ -59,7 +59,7 @@ struct HTTPSession {
 
 // MARK: - HTTPRequest
 
-struct HTTPRequest {
+class HTTPRequest {
     /// If server is not set, `NetworkService` is responsible for assigning a default server during dispatch.
     var server: HTTPServer?
     var path: String = "/"
@@ -71,49 +71,30 @@ struct HTTPRequest {
     // MARK: - Fluent Interface
 
     func server(_ server: HTTPServer) -> Self {
-        var copy = self
-        copy.server = server
-        return copy
+        self.server = server
+        return self
     }
-
     func path(_ path: String) -> Self {
-        var copy = self
-        copy.path = path
-        return copy
+        self.path = path
+        return self
     }
-
-    func queryItems(_ items: [URLQueryItem]) -> Self {
-        var copy = self
-        copy.queryItems = items
-        return copy
+    func queryItems(_ queryItems: [URLQueryItem]) -> Self {
+        self.queryItems = queryItems
+        return self
     }
-
     func method(_ method: HTTPMethod) -> Self {
-        var copy = self
-        copy.method = method
-        return copy
+        self.method = method
+        return self
     }
-
-    func header(key: String, value: String) -> Self {
-        var copy = self
-        copy.headers[key] = value
-        return copy
-    }
-
     func headers(_ headers: [String: String]) -> Self {
-        var copy = self
-        for (key, value) in headers {
-            copy.headers[key] = value
-        }
-        return copy
+        self.headers = headers
+        return self
     }
-
     func body(_ body: Data?) -> Self {
-        var copy = self
-        copy.body = body
-        return copy
+        self.body = body
+        return self
     }
-
+    
     // MARK: - Static Helper Methods
 
     static func get(path: String) -> HTTPRequest {
