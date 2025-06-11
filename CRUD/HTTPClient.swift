@@ -1,8 +1,6 @@
 import Foundation
 import os.log
-
-// https://davedelong.com/blog/2020/06/27/http-in-swift-part-1/
-// https://github.com/davedelong/extendedswift/tree/main/Sources/HTTP
+import Observation
 
 // MARK: - HTTPMethod
 
@@ -15,19 +13,19 @@ enum HTTPMethod: String {
 struct HTTPServer {
     let url: URL
     let description: String?
-    
+
     init(url: URL, description: String? = nil) {
         self.url = url
         self.description = description
     }
-    
+
     init(staticString: StaticString, description: String? = nil) {
         guard let url = URL(string: "\(staticString)") else {
             preconditionFailure("Invalid static URL: \(staticString)")
         }
         self.init(url: url, description: description)
     }
-    
+
     static let prod = HTTPServer(staticString: "https://dummyjson.com/", description: "Production")
     static let local = HTTPServer(staticString: "http://localhost:3000/", description: "Local Development")
     static let mock = HTTPServer(staticString: "https://mock.api/", description: "Mock")
@@ -37,19 +35,19 @@ struct HTTPServer {
 
 struct HTTPSession {
     var dispatch: (URLRequest) async throws -> (Data, URLResponse)
-    
+
     static func live(session: URLSession = .shared) -> HTTPSession {
         HTTPSession { request in
             try await session.data(for: request)
         }
     }
-    
+
     static func mockError(_ error: Error) -> HTTPSession {
         HTTPSession { _ in
             throw error
         }
     }
-    
+
     static func mockSuccess(data: Data, urlResponse: URLResponse) -> HTTPSession {
         HTTPSession { _ in
             return (data, urlResponse)
@@ -57,112 +55,130 @@ struct HTTPSession {
     }
 }
 
+// MARK: - HTTPRequestBody
 struct HTTPRequestBody {
-    var additionalHeaders: [String: String]?
-    var data: Data?
-    
-    static func json<T: Encodable>(_ value: T, encoder: JSONEncoder) throws -> HTTPRequestBody {
+    let additionalHeaders: [String: String]
+    let data: Data
+
+    static func json<T: Encodable>(_ value: T, encoder: JSONEncoder = JSONEncoder()) throws -> HTTPRequestBody {
         let headers = ["Content-Type": "application/json; charset=utf-8"]
         let data = try encoder.encode(value)
         return HTTPRequestBody(additionalHeaders: headers, data: data)
     }
-    
+
     static func form(items: [URLQueryItem]) -> HTTPRequestBody {
         let headers = ["Content-Type": "application/x-www-form-urlencoded; charset=utf-8"]
-        
-        // Builds the "key1=value1&key2=value2" string.
         var components = URLComponents()
         components.queryItems = items
-        
-        // Handles the correct encoding (including turning spaces into '+')
         let urlEncodedString = components.query ?? ""
-
         let data = Data(urlEncodedString.utf8)
         return HTTPRequestBody(additionalHeaders: headers, data: data)
     }
 }
 
+
 // MARK: - HTTPRequest
 
-class HTTPRequest {
-    /// If server is not set, `NetworkService` is responsible for assigning a default server during dispatch.
-    private(set) var server: HTTPServer?
-    private(set) var path: String = "/"
-    private(set) var queryItems: [URLQueryItem] = []
-    private(set) var method: HTTPMethod = .get
-    private(set) var headers: [String: String] = [:]
-    private(set) var body: Data?
-    
+// Converted to a struct for improved safety and predictability, especially in concurrent environments.
+// Each modification creates a new copy, preventing race conditions.
+struct HTTPRequest {
+    var server: HTTPServer?
+    var path: String = "/"
+    var queryItems: [URLQueryItem] = []
+    var method: HTTPMethod = .get
+    var headers: [String: String] = [:]
+    var body: HTTPRequestBody?
+
     // MARK: - Fluent Interface
-    
-    @discardableResult func server(_ server: HTTPServer) -> Self {
-        self.server = server
-        return self
+
+    func server(_ server: HTTPServer) -> Self {
+        var newRequest = self
+        newRequest.server = server
+        return newRequest
     }
-    @discardableResult func path(_ path: String) -> Self {
-        self.path = path
-        return self
+
+    func path(_ path: String) -> Self {
+        var newRequest = self
+        newRequest.path = path
+        return newRequest
     }
-    @discardableResult func queryItems(_ queryItems: [URLQueryItem]) -> Self {
-        self.queryItems = queryItems
-        return self
+
+    func queryItems(_ queryItems: [URLQueryItem]) -> Self {
+        var newRequest = self
+        newRequest.queryItems = queryItems
+        return newRequest
     }
-    @discardableResult func method(_ method: HTTPMethod) -> Self {
-        self.method = method
-        return self
-    }
-    @discardableResult func header(key: String, value: String) -> Self {
-        headers[key] = value
-        return self
-    }
-    @discardableResult func headers(_ headers: [String: String]) -> Self {
-        self.headers = headers
-        return self
-    }
-    @discardableResult func body(_ body: Data?) -> Self {
-        self.body = body
-        return self
+
+    func method(_ method: HTTPMethod) -> Self {
+        var newRequest = self
+        newRequest.method = method
+        return newRequest
     }
     
+    func header(key: String, value: String) -> Self {
+        var newRequest = self
+        newRequest.headers[key] = value
+        return newRequest
+    }
+
+    func headers(_ headers: [String: String]) -> Self {
+        var newRequest = self
+        newRequest.headers.merge(headers) { (_, new) in new }
+        return newRequest
+    }
+
+    func body(_ body: HTTPRequestBody) -> Self {
+        var newRequest = self
+        newRequest.body = body
+        // Automatically merge headers from the body into the request's headers
+        if let bodyHeaders = newRequest.body?.additionalHeaders {
+            newRequest.headers.merge(bodyHeaders) { (_, new) in new }
+        }
+        return newRequest
+    }
+
     // MARK: - Static Helper Methods
-    
+
     static func get(path: String) -> HTTPRequest {
         HTTPRequest()
             .method(.get)
             .path(path)
     }
-    static func post(path: String, body: Data?) -> HTTPRequest {
+
+    static func post(path: String, body: HTTPRequestBody) -> HTTPRequest {
         HTTPRequest()
             .method(.post)
             .path(path)
             .body(body)
     }
-    static func put(path: String, body: Data?) -> HTTPRequest {
+
+    static func put(path: String, body: HTTPRequestBody) -> HTTPRequest {
         HTTPRequest()
             .method(.put)
             .path(path)
             .body(body)
     }
+
     static func delete(path: String) -> HTTPRequest {
         HTTPRequest()
             .method(.delete)
             .path(path)
     }
-    
+
     // MARK: - URLRequest Generation
-    
+
     func generateURLRequest() throws -> URLRequest {
         guard let server = server else {
             throw HTTPError.badRequest(reason: "Server not set for the request.")
         }
         var finalURL = server.url
-        finalURL.append(path: self.path)
+        finalURL.appendPathComponent(self.path)
         if !queryItems.isEmpty {
             finalURL.append(queryItems: self.queryItems)
         }
         var urlRequest = URLRequest(url: finalURL)
         urlRequest.httpMethod = method.rawValue
-        urlRequest.httpBody = body
+        urlRequest.httpBody = body?.data
         urlRequest.allHTTPHeaderFields = headers
         return urlRequest
     }
@@ -178,7 +194,7 @@ struct HTTPResponse {
 
 // MARK: - HTTPError
 
-enum HTTPError: Error, Equatable { // Equatable for easier testing
+enum HTTPError: Error, Equatable {
     case invalidServerURL
     case badRequest(reason: String)
     case badHTTPResponse
@@ -198,13 +214,13 @@ extension NetworkRequestMiddleware {
             print("Path: \(request.path)")
             print("Method: \(request.method.rawValue)")
             print("Headers: \(request.headers)")
-            if let data = request.body, let dataString = String(data: data, encoding: .utf8) {
+            if let data = request.body?.data, let dataString = String(data: data, encoding: .utf8) {
                 print("Body: \(dataString)")
             }
             print("---------------------\n")
         }
     }
-    
+
     static func logRequestCompact() -> NetworkRequestMiddleware {
         NetworkRequestMiddleware { request in
             let serverURL = request.server?.url.absoluteString ?? ""
@@ -213,11 +229,9 @@ extension NetworkRequestMiddleware {
         }
     }
     
-    static func jsonHeaders() -> NetworkRequestMiddleware {
+    static func addHeaders(_ headers: [String: String]) -> NetworkRequestMiddleware {
         NetworkRequestMiddleware { request in
-            request
-                .header(key:"Content-Type", value: "application/json")
-                .header(key:"Accept", value: "application/json")
+            request = request.headers(headers)
         }
     }
 }
@@ -238,7 +252,7 @@ extension NetworkResponseMiddleware {
             }
         }
     }
-    
+
     static func logResponse() -> NetworkResponseMiddleware {
         NetworkResponseMiddleware { result in
             if let httpResponse = result.response as? HTTPURLResponse {
@@ -253,7 +267,7 @@ extension NetworkResponseMiddleware {
             }
         }
     }
-    
+
     static func logResponseCompact() -> NetworkResponseMiddleware {
         NetworkResponseMiddleware { result in
             if let response = result.response as? HTTPURLResponse {
@@ -269,7 +283,7 @@ actor NetworkService {
     private let session: HTTPSession
     private let requestMiddlewares: [NetworkRequestMiddleware]
     private let responseMiddlewares: [NetworkResponseMiddleware]
-    
+
     init(
         server: HTTPServer,
         session: HTTPSession,
@@ -281,34 +295,27 @@ actor NetworkService {
         self.requestMiddlewares = requestMiddlewares
         self.responseMiddlewares = responseMiddlewares
     }
-    
+
     func dispatch(request: HTTPRequest) async throws -> HTTPResponse {
-        
         var req = request
         if req.server == nil {
-            req.server(server)
+            req = req.server(server)
         }
         
-        // 1. Apply request middlewares to the HTTPRequest
         for middleware in requestMiddlewares {
             try middleware.configureRequest(&req)
         }
         
-        // 2. Generate the URLRequest from the (potentially modified) HTTPRequest
         let urlRequest = try req.generateURLRequest()
         
-        // 3. Dispatch the URLRequest and get raw data and response
         let (data, urlResponse) = try await session.dispatch(urlRequest)
         
-        // 4. Create an HTTPResponse object
         var result = HTTPResponse(data: data, response: urlResponse)
         
-        // 5. Apply response middlewares to the HTTPResponse
         for middleware in responseMiddlewares {
             try middleware.processResponse(&result)
         }
         
-        // 6. Return the final, processed HTTPResponse
         return result
     }
 }
@@ -319,7 +326,6 @@ extension NetworkService {
             server: server,
             session: .live(),
             requestMiddlewares: [
-                .jsonHeaders(),
                 .logRequestCompact()
             ],
             responseMiddlewares: [
@@ -355,49 +361,49 @@ extension ProductNetworkService {
 }
 
 extension NetworkService: ProductNetworkService {
-    
+
     private var decoder: JSONDecoder {
         let decoder = JSONDecoder()
         decoder.keyDecodingStrategy = .convertFromSnakeCase
         decoder.dateDecodingStrategy = .iso8601
         return decoder
     }
-    
+
     private var encoder: JSONEncoder {
         let encoder = JSONEncoder()
         encoder.keyEncodingStrategy = .convertToSnakeCase
         encoder.dateEncodingStrategy = .iso8601
         return encoder
     }
-    
+
     // MARK: - Product CRUD Methods
-    
+
     func fetchAll() async throws -> [Product] {
         let request = HTTPRequest.get(path: "products")
         let data = try await dispatch(request: request).data
         return try decoder.decode([Product].self, from: data)
     }
-    
+
     func fetchById(_ id: Int) async throws -> Product {
         let request = HTTPRequest.get(path: "products/\(id)")
         let data = try await dispatch(request: request).data
         return try decoder.decode(Product.self, from: data)
     }
-    
+
     func create(_ product: Product) async throws -> Product {
-        let productPayload = try encoder.encode(product)
-        let request = HTTPRequest.post(path: "products", body: productPayload)
+        let requestBody = try HTTPRequestBody.json(product, encoder: encoder)
+        let request = HTTPRequest.post(path: "products", body: requestBody)
         let data = try await dispatch(request: request).data
         return try decoder.decode(Product.self, from: data)
     }
-    
+
     func update(_ product: Product) async throws -> Product {
-        let productPayload = try encoder.encode(product)
-        let request = HTTPRequest.put(path: "products/\(product.id)", body: productPayload)
+        let requestBody = try HTTPRequestBody.json(product, encoder: encoder)
+        let request = HTTPRequest.put(path: "products/\(product.id)", body: requestBody)
         let data = try await dispatch(request: request).data
         return try decoder.decode(Product.self, from: data)
     }
-    
+
     func delete(_ id: Int) async throws {
         let request = HTTPRequest.delete(path: "products/\(id)")
         _ = try await dispatch(request: request)
@@ -407,37 +413,37 @@ extension NetworkService: ProductNetworkService {
 // MARK: - MockProductNetworkService
 
 class MockProductNetworkService: ProductNetworkService {
-    
+
     typealias FetchAllHandler = () async throws -> [Product]
     typealias FetchByIdHandler = (_ id: Int) async throws -> Product
     typealias CreateHandler = (_ product: Product) async throws -> Product
     typealias UpdateHandler = (_ product: Product) async throws -> Product
     typealias DeleteHandler = (_ id: Int) async throws -> Void
-    
+
     var fetchAllHandler: FetchAllHandler = { Product.mockArray }
     var fetchByIdHandler: FetchByIdHandler = { _ in Product.mockValue }
     var createHandler: CreateHandler = { $0 }
     var updateHandler: UpdateHandler = { $0 }
     var deleteHandler: DeleteHandler = { _ in }
-    
+
     init() {}
-    
+
     func fetchAll() async throws -> [Product] {
         try await fetchAllHandler()
     }
-    
+
     func fetchById(_ id: Int) async throws -> Product {
         try await fetchByIdHandler(id)
     }
-    
+
     func create(_ product: Product) async throws -> Product {
         try await createHandler(product)
     }
-    
+
     func update(_ product: Product) async throws -> Product {
         try await updateHandler(product)
     }
-    
+
     func delete(_ id: Int) async throws {
         try await deleteHandler(id)
     }
@@ -449,12 +455,12 @@ class MockProductNetworkService: ProductNetworkService {
 @MainActor
 @Observable
 class ProductRepository {
-    
+
     private(set) var products = [Product]()
     private let productNetworkService: ProductNetworkService
-    
+
     // MARK: - Initialization
-    
+
     init(
         products: [Product] = [Product](),
         productNetworkService: ProductNetworkService
@@ -462,55 +468,54 @@ class ProductRepository {
         self.products = products
         self.productNetworkService = productNetworkService
     }
-    
+
     static func live(server: HTTPServer) -> ProductRepository {
         ProductRepository(productNetworkService: NetworkService.live(server: server))
     }
     static var mock: ProductRepository {
         ProductRepository(productNetworkService: MockProductNetworkService())
     }
-    
+
     // MARK: - Public Network Operations
-    
+
     @discardableResult
     func fetchAll() async throws -> [Product] {
-        //        try await Task.sleep(for: .seconds(2)) // Simulate network delay
         let fetchedProducts = try await productNetworkService.fetchAll()
         self.products = fetchedProducts
         return fetchedProducts
     }
-    
+
     @discardableResult
     func fetchById(_ id: Int) async throws -> Product {
         let product = try await productNetworkService.fetchById(id)
         self.upsert(product)
         return product
     }
-    
+
     @discardableResult
     func create(_ product: Product) async throws -> Product {
         let createdProduct = try await productNetworkService.create(product)
         self.upsert(createdProduct)
         return createdProduct
     }
-    
+
     @discardableResult
     func update(_ product: Product) async throws -> Product {
         let updatedProduct = try await productNetworkService.update(product)
         self.upsert(updatedProduct)
         return updatedProduct
     }
-    
+
     func delete(_ id: Int) async throws -> Void {
         try await productNetworkService.delete(id)
         products.removeAll { $0.id == id }
     }
-    
+
     // MARK: - Cached Product Access
     func lookup(_ id: Int) -> Product? {
         return products.first(where: { $0.id == id })
     }
-    
+
     private func upsert(_ product: Product) {
         if let index = products.firstIndex(where: { $0.id == product.id }) {
             products[index] = product
