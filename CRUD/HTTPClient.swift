@@ -2,12 +2,6 @@ import Foundation
 import os.log
 import Observation
 
-// MARK: - HTTPMethod
-
-enum HTTPMethod: String {
-    case get = "GET", post = "POST", put = "PUT", delete = "DELETE"
-}
-
 // MARK: - HTTPServer
 
 struct HTTPServer {
@@ -55,7 +49,14 @@ struct HTTPSession {
     }
 }
 
+// MARK: - HTTPMethod
+
+enum HTTPMethod: String {
+    case get = "GET", post = "POST", put = "PUT", delete = "DELETE"
+}
+
 // MARK: - HTTPRequestBody
+
 struct HTTPRequestBody {
     let additionalHeaders: [String: String]
     let data: Data
@@ -76,11 +77,8 @@ struct HTTPRequestBody {
     }
 }
 
-
 // MARK: - HTTPRequest
 
-// Converted to a struct for improved safety and predictability, especially in concurrent environments.
-// Each modification creates a new copy, preventing race conditions.
 struct HTTPRequest {
     var server: HTTPServer?
     var path: String = "/"
@@ -89,7 +87,7 @@ struct HTTPRequest {
     var headers: [String: String] = [:]
     var body: HTTPRequestBody?
 
-    // MARK: - Fluent Interface
+    /// Fluent Interface
 
     func server(_ server: HTTPServer) -> Self {
         var newRequest = self
@@ -137,7 +135,7 @@ struct HTTPRequest {
         return newRequest
     }
 
-    // MARK: - Static Helper Methods
+    /// Static Helper Methods
 
     static func get(path: String) -> HTTPRequest {
         HTTPRequest()
@@ -165,7 +163,7 @@ struct HTTPRequest {
             .path(path)
     }
 
-    // MARK: - URLRequest Generation
+    /// URLRequest Generation
 
     func generateURLRequest() throws -> URLRequest {
         guard let server = server else {
@@ -191,132 +189,112 @@ struct HTTPResponse {
     let response: URLResponse
 }
 
+// MARK: - HTTPMiddleware
 
-// MARK: - HTTPError
-
-enum HTTPError: Error, Equatable {
-    case invalidServerURL
-    case badRequest(reason: String)
-    case badHTTPResponse
-    case badStatusCode(Int)
+protocol HTTPMiddleware {
+    /// Prepares a request before it is sent.
+    func prepare(request: HTTPRequest) -> HTTPRequest
+    /// Processes a response after it is received.
+    func process(response: HTTPResponse) throws -> HTTPResponse
 }
 
-// MARK: - Middleware Definitions
-struct NetworkRequestMiddleware {
-    var configureRequest: (inout HTTPRequest) throws -> Void
-}
-
-extension NetworkRequestMiddleware {
-    static func logRequest() -> NetworkRequestMiddleware {
-        NetworkRequestMiddleware { request in
-            print("\n--- Network Request ---")
-            print("Server: \(request.server?.url.absoluteString ?? "N/A")")
-            print("Path: \(request.path)")
-            print("Method: \(request.method.rawValue)")
-            print("Headers: \(request.headers)")
-            if let data = request.body?.data, let dataString = String(data: data, encoding: .utf8) {
-                print("Body: \(dataString)")
-            }
-            print("---------------------\n")
-        }
+extension HTTPMiddleware {
+    func prepare(request: HTTPRequest) -> HTTPRequest {
+        return request
     }
-
-    static func logRequestCompact() -> NetworkRequestMiddleware {
-        NetworkRequestMiddleware { request in
-            let serverURL = request.server?.url.absoluteString ?? ""
-            let fullPath = "\(serverURL)\(request.path)"
-            print("➡️ \(request.method.rawValue) \(fullPath)")
-        }
-    }
-    
-    static func addHeaders(_ headers: [String: String]) -> NetworkRequestMiddleware {
-        NetworkRequestMiddleware { request in
-            request = request.headers(headers)
-        }
+    func process(response: HTTPResponse) throws -> HTTPResponse {
+        return response
     }
 }
 
-struct NetworkResponseMiddleware {
-    var processResponse: (inout HTTPResponse) throws -> Void
+/// A middleware for adding common headers to every request.
+struct HeadersMiddleware: HTTPMiddleware {
+    let headers: [String: String]
+
+    func prepare(request: HTTPRequest) -> HTTPRequest {
+        return request.headers(headers)
+    }
 }
 
-extension NetworkResponseMiddleware {
-    static func validateHTTPStatusCode() -> NetworkResponseMiddleware {
-        NetworkResponseMiddleware { result in
-            guard let httpResponse = result.response as? HTTPURLResponse else {
-                throw HTTPError.badHTTPResponse
-            }
-            let validRange: ClosedRange<Int> = 200...299
-            guard validRange.contains(httpResponse.statusCode) else {
-                throw HTTPError.badStatusCode(httpResponse.statusCode)
-            }
+/// A middleware for validating the HTTP status code of a response.
+struct StatusCodeValidationMiddleware: HTTPMiddleware {
+    func process(response: HTTPResponse) throws -> HTTPResponse {
+        guard let httpResponse = response.response as? HTTPURLResponse else {
+            throw HTTPError.badHTTPResponse
         }
+        guard (200...299).contains(httpResponse.statusCode) else {
+            throw HTTPError.badStatusCode(httpResponse.statusCode)
+        }
+        return response
     }
+}
 
-    static func logResponse() -> NetworkResponseMiddleware {
-        NetworkResponseMiddleware { result in
-            if let httpResponse = result.response as? HTTPURLResponse {
-                print("\n--- Network Response ---")
-                print("URL: \(httpResponse.url?.absoluteString ?? "N/A")")
-                print("Status Code: \(httpResponse.statusCode)")
-                print("Headers: \(httpResponse.allHeaderFields)")
-                if let dataString = String(data: result.data, encoding: .utf8) {
-                    print("Body: \(dataString)")
-                }
-                print("----------------------\n")
-            }
-        }
+/// A middleware for logging the request and response using a structured Logger.
+struct LoggingMiddleware: HTTPMiddleware {
+    private let logger: Logger
+    init(logger: Logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "com.yourapp", category: "Networking")) {
+        self.logger = logger
     }
-
-    static func logResponseCompact() -> NetworkResponseMiddleware {
-        NetworkResponseMiddleware { result in
-            if let response = result.response as? HTTPURLResponse {
-                print("⬅️ \(response.statusCode) \(response.url?.absoluteString ?? "N/A")")
-            }
+    func prepare(request: HTTPRequest) -> HTTPRequest {
+        let serverURL = request.server?.url.absoluteString ?? "N/A"
+        let method = request.method.rawValue
+        let fullPath = "\(serverURL)\(request.path)"
+        
+        // Using .debug for verbose network logs is a common practice.
+        logger.debug("➡️ \(method) \(fullPath)")
+        
+        return request
+    }
+    func process(response: HTTPResponse) throws -> HTTPResponse {
+        if let resp = response.response as? HTTPURLResponse, let url = resp.url {
+            logger.debug("⬅️ \(resp.statusCode) \(url.absoluteString)")
+        } else {
+            logger.debug("⬅️ Received a non-HTTP response.")
         }
+        return response
     }
 }
 
 // MARK: - NetworkService
+
 actor NetworkService {
     private let server: HTTPServer
     private let session: HTTPSession
-    private let requestMiddlewares: [NetworkRequestMiddleware]
-    private let responseMiddlewares: [NetworkResponseMiddleware]
+    private let middlewares: [HTTPMiddleware]
 
     init(
         server: HTTPServer,
         session: HTTPSession,
-        requestMiddlewares: [NetworkRequestMiddleware] = [],
-        responseMiddlewares: [NetworkResponseMiddleware] = []
+        middlewares: [HTTPMiddleware] = []
     ) {
         self.server = server
         self.session = session
-        self.requestMiddlewares = requestMiddlewares
-        self.responseMiddlewares = responseMiddlewares
+        self.middlewares = middlewares
     }
 
     func dispatch(request: HTTPRequest) async throws -> HTTPResponse {
+        // 1. Assign default server if needed.
         var req = request
         if req.server == nil {
             req = req.server(server)
         }
         
-        for middleware in requestMiddlewares {
-            try middleware.configureRequest(&req)
+        // 2. Run all request-preparation steps.
+        for middleware in middlewares {
+            req = middleware.prepare(request: req)
         }
         
+        // 3. Generate the final URLRequest and send it.
         let urlRequest = try req.generateURLRequest()
-        
         let (data, urlResponse) = try await session.dispatch(urlRequest)
+        var response = HTTPResponse(data: data, response: urlResponse)
         
-        var result = HTTPResponse(data: data, response: urlResponse)
-        
-        for middleware in responseMiddlewares {
-            try middleware.processResponse(&result)
+        // 4. Run all response-processing steps.
+        for middleware in middlewares {
+            response = try middleware.process(response: response)
         }
         
-        return result
+        return response
     }
 }
 
@@ -325,13 +303,7 @@ extension NetworkService {
         NetworkService(
             server: server,
             session: .live(),
-            requestMiddlewares: [
-                .logRequestCompact()
-            ],
-            responseMiddlewares: [
-                .logResponseCompact(),
-                .validateHTTPStatusCode()
-            ]
+            middlewares: [LoggingMiddleware(), StatusCodeValidationMiddleware()]
         )
     }
     static func mockSuccess(data: Data, urlResponse: URLResponse) -> NetworkService {
@@ -340,6 +312,15 @@ extension NetworkService {
     static func mockError(_ error: Error) -> NetworkService {
         NetworkService(server: .mock, session: .mockError(error))
     }
+}
+
+// MARK: - HTTPError
+
+enum HTTPError: Error, Equatable {
+    case invalidServerURL
+    case badRequest(reason: String)
+    case badHTTPResponse
+    case badStatusCode(Int)
 }
 
 // MARK: - ProductNetworkService
@@ -431,26 +412,21 @@ class MockProductNetworkService: ProductNetworkService {
     func fetchAll() async throws -> [Product] {
         try await fetchAllHandler()
     }
-
     func fetchById(_ id: Int) async throws -> Product {
         try await fetchByIdHandler(id)
     }
-
     func create(_ product: Product) async throws -> Product {
         try await createHandler(product)
     }
-
     func update(_ product: Product) async throws -> Product {
         try await updateHandler(product)
     }
-
     func delete(_ id: Int) async throws {
         try await deleteHandler(id)
     }
 }
 
 // MARK: - ProductRepository
-
 
 @MainActor
 @Observable
@@ -459,7 +435,7 @@ class ProductRepository {
     private(set) var products = [Product]()
     private let productNetworkService: ProductNetworkService
 
-    // MARK: - Initialization
+    /// Initialization
 
     init(
         products: [Product] = [Product](),
@@ -476,7 +452,7 @@ class ProductRepository {
         ProductRepository(productNetworkService: MockProductNetworkService())
     }
 
-    // MARK: - Public Network Operations
+    /// Public Network Operations
 
     @discardableResult
     func fetchAll() async throws -> [Product] {
@@ -511,7 +487,8 @@ class ProductRepository {
         products.removeAll { $0.id == id }
     }
 
-    // MARK: - Cached Product Access
+    /// Cached Product Access
+    
     func lookup(_ id: Int) -> Product? {
         return products.first(where: { $0.id == id })
     }

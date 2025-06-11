@@ -9,9 +9,23 @@ import SwiftUI
 
 @main
 struct CRUDApp: App {
+    
+    private let service = ServiceProvider(networkService: .live(server: .local))
+    
     var body: some Scene {
         WindowGroup {
             ContentView()
+                .environment(service)
         }
+    }
+}
+
+
+@Observable
+final class ServiceProvider {
+    let networkService: NetworkService
+
+    init(networkService: NetworkService) {
+        self.networkService = networkService
     }
 }
