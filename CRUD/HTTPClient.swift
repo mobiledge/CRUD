@@ -61,8 +61,9 @@ struct HTTPSession {
 
 struct HTTPRequest {
     /// If server is not set, `NetworkService` is responsible for assigning a default server during dispatch.
-    var server: HTTPServer? = nil
-    var urlComponents = URLComponents()
+    var server: HTTPServer?
+    var path: String = "/"
+    var queryItems: [URLQueryItem] = []
     var method: HTTPMethod = .get
     var headers: [String: String] = [:]
     var body: Data?
@@ -77,13 +78,13 @@ struct HTTPRequest {
 
     func path(_ path: String) -> Self {
         var copy = self
-        copy.urlComponents.path = path
+        copy.path = path
         return copy
     }
 
     func queryItems(_ items: [URLQueryItem]) -> Self {
         var copy = self
-        copy.urlComponents.queryItems = items
+        copy.queryItems = items
         return copy
     }
 
@@ -147,25 +148,15 @@ struct HTTPRequest {
         guard let server = server else {
             throw HTTPError.badRequest(reason: "Server not set for the request.")
         }
-
-        guard var components = URLComponents(url: server.url, resolvingAgainstBaseURL: true) else {
-            throw HTTPError.invalidServerURL
+        var finalURL = server.url
+        finalURL.append(path: self.path)
+        if !queryItems.isEmpty {
+            finalURL.append(queryItems: self.queryItems)
         }
-
-        components.path += urlComponents.path
-        if let queryItems = urlComponents.queryItems {
-            components.queryItems = (components.queryItems ?? []) + queryItems
-        }
-
-        guard let finalURL = components.url else {
-            throw HTTPError.badRequest(reason: "Failed to construct the final URL.")
-        }
-
         var urlRequest = URLRequest(url: finalURL)
         urlRequest.httpMethod = method.rawValue
         urlRequest.httpBody = body
         urlRequest.allHTTPHeaderFields = headers
-
         return urlRequest
     }
 }
@@ -197,7 +188,7 @@ extension NetworkRequestMiddleware {
         NetworkRequestMiddleware { request in
             print("\n--- Network Request ---")
             print("Server: \(request.server?.url.absoluteString ?? "N/A")")
-            print("Path: \(request.urlComponents.path)")
+            print("Path: \(request.path)")
             print("Method: \(request.method.rawValue)")
             print("Headers: \(request.headers)")
             if let data = request.body, let dataString = String(data: data, encoding: .utf8) {
@@ -210,7 +201,7 @@ extension NetworkRequestMiddleware {
     static func logRequestCompact() -> NetworkRequestMiddleware {
         NetworkRequestMiddleware { request in
             let serverURL = request.server?.url.absoluteString ?? ""
-            let fullPath = "\(serverURL)\(request.urlComponents.path)"
+            let fullPath = "\(serverURL)\(request.path)"
             print("➡️ \(request.method.rawValue) \(fullPath)")
         }
     }
