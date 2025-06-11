@@ -61,36 +61,40 @@ struct HTTPSession {
 
 class HTTPRequest {
     /// If server is not set, `NetworkService` is responsible for assigning a default server during dispatch.
-    var server: HTTPServer?
-    var path: String = "/"
-    var queryItems: [URLQueryItem] = []
-    var method: HTTPMethod = .get
-    var headers: [String: String] = [:]
-    var body: Data?
+    private(set) var server: HTTPServer?
+    private(set) var path: String = "/"
+    private(set) var queryItems: [URLQueryItem] = []
+    private(set) var method: HTTPMethod = .get
+    private(set) var headers: [String: String] = [:]
+    private(set) var body: Data?
 
     // MARK: - Fluent Interface
 
-    func server(_ server: HTTPServer) -> Self {
+     @discardableResult func server(_ server: HTTPServer) -> Self {
         self.server = server
         return self
     }
-    func path(_ path: String) -> Self {
+     @discardableResult func path(_ path: String) -> Self {
         self.path = path
         return self
     }
-    func queryItems(_ queryItems: [URLQueryItem]) -> Self {
+     @discardableResult func queryItems(_ queryItems: [URLQueryItem]) -> Self {
         self.queryItems = queryItems
         return self
     }
-    func method(_ method: HTTPMethod) -> Self {
+     @discardableResult func method(_ method: HTTPMethod) -> Self {
         self.method = method
         return self
     }
-    func headers(_ headers: [String: String]) -> Self {
+     @discardableResult func appendHeader(key: String, value: String) -> Self {
+        headers[key] = value
+        return self
+    }
+     @discardableResult func headers(_ headers: [String: String]) -> Self {
         self.headers = headers
         return self
     }
-    func body(_ body: Data?) -> Self {
+     @discardableResult func body(_ body: Data?) -> Self {
         self.body = body
         return self
     }
@@ -102,21 +106,18 @@ class HTTPRequest {
             .method(.get)
             .path(path)
     }
-
     static func post(path: String, body: Data?) -> HTTPRequest {
         HTTPRequest()
             .method(.post)
             .path(path)
             .body(body)
     }
-
     static func put(path: String, body: Data?) -> HTTPRequest {
         HTTPRequest()
             .method(.put)
             .path(path)
             .body(body)
     }
-
     static func delete(path: String) -> HTTPRequest {
         HTTPRequest()
             .method(.delete)
@@ -189,8 +190,9 @@ extension NetworkRequestMiddleware {
 
     static func jsonHeaders() -> NetworkRequestMiddleware {
         NetworkRequestMiddleware { request in
-            request.headers["Content-Type"] = "application/json"
-            request.headers["Accept"] = "application/json"
+            request
+                .appendHeader(key:"Content-Type", value: "application/json")
+                .appendHeader(key:"Accept", value: "application/json")
         }
     }
 }
@@ -259,7 +261,7 @@ actor NetworkService {
 
         var req = request
         if req.server == nil {
-            req.server = server
+            req.server(server)
         }
 
         // 1. Apply request middlewares to the HTTPRequest
