@@ -2,7 +2,6 @@ import SwiftUI
 
 struct ProductListView: View {
     var viewModel: ProductListViewModel
-    @State var isPresented = false
     
     var body: some View {
         Group {
