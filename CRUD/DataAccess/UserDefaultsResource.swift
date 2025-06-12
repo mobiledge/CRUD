@@ -91,4 +91,6 @@ extension UserDefaultsResource {
     }
 }
 
+// MARK: - Product + UserDefaultsResource
+
 extension Product: UserDefaultsResource {}
