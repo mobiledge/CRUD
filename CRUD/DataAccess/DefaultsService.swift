@@ -1,32 +1,6 @@
 import Foundation
 import os.log
 
-// MARK: - DefaultsServicable
-
-protocol DefaultsServicable: Codable, Identifiable {
-    // Read
-    static func all() -> [Self]
-    static func all(where predicate: (Self) -> Bool) -> [Self]
-    static func find(id: Self.ID) -> Self?
-    static func find(where predicate: (Self) -> Bool) -> Self?
-    
-    // Write
-    func save()
-    static func saveMany(upserting entities: [Self])
-    static func replaceAll(with entities: [Self])
-    
-    // Delete
-    func delete()
-    static func delete(subset entities: [Self])
-    static func deleteAll()
-    
-    // Convenience properties
-    static var key: String { get }
-    static var defaults: UserDefaults { get }
-    static var encoder: JSONEncoder { get }
-    static var decoder: JSONDecoder { get }
-}
-
 // MARK: - DefaultsService
 
 struct DefaultsService<T: Codable & Identifiable> {
@@ -110,6 +84,32 @@ struct DefaultsService<T: Codable & Identifiable> {
     }
 }
 
+// MARK: - DefaultsServicable
+
+protocol DefaultsServicable: Codable, Identifiable {
+    // Read
+    static func all() -> [Self]
+    static func all(where predicate: (Self) -> Bool) -> [Self]
+    static func find(id: Self.ID) -> Self?
+    static func find(where predicate: (Self) -> Bool) -> Self?
+    
+    // Write
+    func save()
+    static func saveMany(upserting entities: [Self])
+    static func replaceAll(with entities: [Self])
+    
+    // Delete
+    func delete()
+    static func delete(subset entities: [Self])
+    static func deleteAll()
+    
+    // Convenience properties
+    static var key: String { get }
+    static var defaults: UserDefaults { get }
+    static var encoder: JSONEncoder { get }
+    static var decoder: JSONDecoder { get }
+}
+
 // MARK: - DefaultsServicable Extension
 
 extension DefaultsServicable {
@@ -136,16 +136,6 @@ extension DefaultsServicable {
     static func delete(subset entities: [Self]) { service.delete(subset: entities) }
     static func deleteAll() { Self.service.deleteAll() }
 }
-
-// MARK: - Example Usage
-/*
- struct Product: Codable, Identifiable {
- var id: Int
- var name: String
- }
- extension Product: DefaultsServicable {}
- */
-
 
 // MARK: - Private Free Functions
 
