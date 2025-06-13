@@ -1,7 +1,7 @@
 import Foundation
 import os.log
 
-private let logger = Logger(subsystem: "io.mobiledge.CRUD", category: "Defaults")
+private let logger = Logger(subsystem: "io.mobiledge.CRUD", category: "DefaultsService")
 
 // MARK: - DefaultsService
 

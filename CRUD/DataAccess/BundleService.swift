@@ -1,7 +1,7 @@
 import Foundation
 import os.log
 
-private let bundleLogger = Logger(subsystem: "io.mobiledge.CRUD", category: "BundleLoader")
+private let bundleLogger = Logger(subsystem: "io.mobiledge.CRUD", category: "BundleService")
 
 // MARK: - BundleService
 

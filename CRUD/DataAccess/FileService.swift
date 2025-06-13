@@ -3,156 +3,194 @@ import os.log
 
 private let logger = Logger(subsystem: "io.mobiledge.CRUD", category: "FileService")
 
-// MARK: - FileService
+// MARK: - FileService (Unchanged)
 
+/// A service that provides the fundamental behaviors for file storage.
+/// This struct acts as a "witness" by holding closures for its core operations,
+/// allowing the underlying storage mechanism (file system, in-memory, etc.)
+/// to be swapped out for testing or different contexts.
 struct FileService {
+    var fetch: (_ filename: String) -> Data?
+    var save: (_ filename: String, _ data: Data) -> Void
+    var remove: (_ filename: String) -> Void
+}
+
+extension FileService {
+    /// The default service instance, configured to use the app's document directory.
+    static let `default` = FileService(
+        fetch: { filename in
+            guard let url = url(for: filename) else { return nil }
+            guard FileManager.default.fileExists(atPath: url.path) else { return nil }
+            do {
+                return try Data(contentsOf: url)
+            } catch {
+                logger.error("Failed to read data from file '\(filename)': \(error.localizedDescription)")
+                return nil
+            }
+        },
+        save: { filename, data in
+            guard let url = url(for: filename) else { return }
+            do {
+                try data.write(to: url, options: .atomic)
+            } catch {
+                logger.error("Failed to save data to file '\(filename)': \(error.localizedDescription)")
+            }
+        },
+        remove: { filename in
+            guard let url = url(for: filename) else { return }
+            guard FileManager.default.fileExists(atPath: url.path) else { return }
+            do {
+                try FileManager.default.removeItem(at: url)
+            } catch {
+                logger.error("Failed to remove file '\(filename)': \(error.localizedDescription)")
+            }
+        }
+    )
     
-    let manager: FileManager = .default
-    let directory: FileManager.SearchPathDirectory = .documentDirectory
-    
-    private func fileURL(for filename: String) -> URL? {
-        guard let url = manager.urls(for: directory, in: .userDomainMask).first else {
+    /// A private helper to get the URL for a file in the document directory.
+    private static func url(for filename: String) -> URL? {
+        guard let docDir = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first else {
             logger.error("Could not access document directory.")
             return nil
         }
-        return url.appendingPathComponent(filename)
+        return docDir.appendingPathComponent(filename)
     }
 
-    func fetch(filename: String) -> Data? {
-        guard let url = fileURL(for: filename) else { return nil }
-        
-        guard manager.fileExists(atPath: url.path) else {
-            logger.info("File '\(filename)' not found at path: \(url.path)")
-            return nil
-        }
-        
-        do {
-            return try Data(contentsOf: url)
-        } catch {
-            logger.error("Failed to read data from file '\(filename)': \(error.localizedDescription)")
-            return nil
-        }
-    }
-
-    func save(filename: String, value: Data) {
-        guard let url = fileURL(for: filename) else { return }
-        
-        do {
-            try value.write(to: url, options: .atomic)
-        } catch {
-            logger.error("Failed to save data to file '\(filename)': \(error.localizedDescription)")
-        }
-    }
-
-    func remove(filename: String) {
-        guard let url = fileURL(for: filename) else { return }
-        
-        guard manager.fileExists(atPath: url.path) else {
-            logger.info("Attempted to remove non-existent file: '\(filename)'")
-            return
-        }
-        
-        do {
-            try manager.removeItem(at: url)
-        } catch {
-            logger.error("Failed to remove file '\(filename)': \(error.localizedDescription)")
-        }
+    /// A mock service that uses an in-memory dictionary for storage.
+    /// Perfect for SwiftUI previews or unit tests.
+    static func mock(initialFiles: [String: Data] = [:]) -> FileService {
+        var store = initialFiles
+        return FileService(
+            fetch: { filename in store[filename] },
+            save: { filename, data in store[filename] = data },
+            remove: { filename in store[filename] = nil }
+        )
     }
 }
 
+
 // MARK: - FileClient
 
+/// A client for CRUD operations on a collection of `Codable & Identifiable` objects
+/// within a single file, specifically using the JSON format.
 struct FileClient<T: Codable & Identifiable> {
-    
     let service: FileService
     let filename: String
+
     let encoder: JSONEncoder
     let decoder: JSONDecoder
     
-    /// Private Helpers
+    init(
+        service: FileService = .default,
+        filename: String,
+        encoder: JSONEncoder = JSONEncoder(),
+        decoder: JSONDecoder = JSONDecoder()
+    ) {
+        self.service = service
+        self.filename = filename
+        self.encoder = encoder
+        self.decoder = decoder
+    }
+
+    // MARK: - Read Operations
     
-    private func fetchAllItems() -> [T] {
-        guard let data = service.fetch(filename: filename) else { return [] }
-        
+    /// Fetches the entire collection from the file.
+    /// - Returns: An array of decoded items, or an empty array if the file doesn't exist or fails to decode.
+    func all() -> [T] {
+        guard let data = service.fetch(filename) else { return [] }
         do {
-            return try decoder.decode([T].self, from: data)
+            return try self.decoder.decode([T].self, from: data)
         } catch {
-            logger.error("Failed to decode items from '\(filename)': \(error.localizedDescription)")
+            logger.error("Failed to decode '\(self.filename)': \(error.localizedDescription)")
             return []
         }
     }
     
-    private func saveAllItems(_ items: [T]) {
-        do {
-            let data = try encoder.encode(items)
-            service.save(filename: filename, value: data)
-        } catch {
-            logger.error("Failed to encode items for '\(filename)': \(error.localizedDescription)")
-        }
-    }
-    
-    /// Read Operations
-    
-    func all() -> [T] {
-        return fetchAllItems()
-    }
-    
+    /// Returns all items in the collection that satisfy the given predicate.
+    /// - Parameter predicate: A closure that takes an item as its argument and returns a Boolean value indicating whether the item should be included in the returned array.
+    /// - Returns: An array of the items that satisfy the predicate.
     func all(where predicate: (T) -> Bool) -> [T] {
-        return fetchAllItems().filter(predicate)
+        return all().filter(predicate)
     }
     
+    /// Finds the first item in the collection with the specified ID.
+    /// - Parameter id: The unique identifier of the item to find.
+    /// - Returns: The first item that matches the ID, or `nil` if no match is found.
     func find(id: T.ID) -> T? {
-        return fetchAllItems().first { $0.id == id }
+        return all().first { $0.id == id }
     }
     
+    /// Finds the first item in the collection that satisfies the given predicate.
+    /// - Parameter predicate: A closure that returns a Boolean value.
+    /// - Returns: The first item in the collection that satisfies the `predicate`, or `nil` if no such item is found.
     func find(where predicate: (T) -> Bool) -> T? {
-        return fetchAllItems().first(where: predicate)
+        return all().first(where: predicate)
     }
     
-    /// Write Operations
+    // MARK: - Write Operations
     
+    /// Saves (inserts or updates) a single item in the collection.
+    /// This is a "read-modify-write" operation.
+    /// - Parameter entity: The item to save.
     func save(_ entity: T) {
-        var items = fetchAllItems()
+        var items = all()
         if let index = items.firstIndex(where: { $0.id == entity.id }) {
             items[index] = entity
         } else {
             items.append(entity)
         }
-        saveAllItems(items)
+        replaceAll(with: items)
     }
     
+    /// Efficiently saves (inserts or updates) multiple items in the collection.
+    /// This performs only one file read and one file write for the entire operation.
+    /// - Parameter entities: The array of items to save.
     func saveMany(upserting entities: [T]) {
-        let items = fetchAllItems()
-        let itemsDict = Dictionary(grouping: items, by: { $0.id })
-        var finalItems = itemsDict.mapValues { $0[0] }
-
+        guard !entities.isEmpty else { return }
+        let items = all()
+        var itemDict = Dictionary(uniqueKeysWithValues: items.map { ($0.id, $0) })
+        
         for entity in entities {
-            finalItems[entity.id] = entity
+            itemDict[entity.id] = entity
         }
-
-        saveAllItems(Array(finalItems.values))
+        
+        replaceAll(with: Array(itemDict.values))
     }
     
+    /// Replaces the entire collection in the file with a new array of items.
+    /// - Parameter entities: The new array of items to persist.
     func replaceAll(with entities: [T]) {
-        saveAllItems(entities)
+        do {
+            let data = try self.encoder.encode(entities)
+            service.save(filename, data)
+        } catch {
+            logger.error("Failed to encode '\(self.filename)': \(error.localizedDescription)")
+        }
     }
+
+    // MARK: - Delete Operations
     
-    /// Delete Operations
-    
+    /// Deletes a single item from the collection.
+    /// - Parameter entity: The item to delete.
     func delete(_ entity: T) {
-        var items = fetchAllItems()
+        var items = all()
         items.removeAll { $0.id == entity.id }
-        saveAllItems(items)
+        replaceAll(with: items)
     }
     
+    /// Efficiently deletes multiple items from the collection.
+    /// This performs only one file read and one file write for the entire operation.
+    /// - Parameter entities: The array of items to delete.
     func delete(subset entities: [T]) {
-        var items = fetchAllItems()
+        guard !entities.isEmpty else { return }
+        var items = all()
         let idsToDelete = Set(entities.map { $0.id })
         items.removeAll { idsToDelete.contains($0.id) }
-        saveAllItems(items)
+        replaceAll(with: items)
     }
-    
+
+    /// Deletes the file, thereby removing the entire collection.
     func deleteAll() {
-        service.remove(filename: filename)
+        service.remove(filename)
     }
 }
