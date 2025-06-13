@@ -3,7 +3,7 @@ import os.log
 
 private let logger = Logger(subsystem: "io.mobiledge.CRUD", category: "Defaults")
 
-// MARK: - DefaultsService (Unchanged)
+// MARK: - DefaultsService
 
 /// A service that provides the fundamental behaviors for a key-value store.
 struct DefaultsService {
@@ -30,11 +30,11 @@ extension DefaultsService {
 }
 
 
-// MARK: - 1. Client for Singular JSON Objects (Property Approach)
+// MARK: - DefaultsClient
 
 /// A client for fetching, saving, and removing a single `Codable` object,
 /// specifically using the JSON format.
-struct JsonDefaultsObjectClient<T: Codable> {
+struct DefaultsClient<T: Codable> {
     let service: DefaultsService
     let key: String
     let encoder: JSONEncoder
@@ -74,77 +74,6 @@ struct JsonDefaultsObjectClient<T: Codable> {
     }
     
     func remove() {
-        service.remove(key)
-    }
-}
-
-
-// MARK: - 2. Client for JSON Object Collections (Property Approach)
-
-/// A client for CRUD operations on a collection of `Codable & Identifiable` objects,
-/// specifically using the JSON format.
-struct JsonDefaultsCollectionClient<T: Codable & Identifiable> {
-    let service: DefaultsService
-    let key: String
-    let encoder: JSONEncoder
-    let decoder: JSONDecoder
-    
-    init(
-        service: DefaultsService = .default,
-        key: String = String(describing: T.self),
-        encoder: JSONEncoder = JSONEncoder(),
-        decoder: JSONDecoder = JSONDecoder()
-    ) {
-        self.service = service
-        self.key = key
-        self.encoder = encoder
-        self.decoder = decoder
-    }
-
-    // MARK: - Public API
-    
-    func all() -> [T] {
-        guard let data = service.fetch(key) else { return [] }
-        do {
-            // Directly use the decoder property
-            return try self.decoder.decode([T].self, from: data)
-        } catch {
-            logger.error("Failed to decode '\(self.key)': \(error.localizedDescription)")
-            return []
-        }
-    }
-    
-    func find(id: T.ID) -> T? {
-        return all().first { $0.id == id }
-    }
-    
-    func save(_ entity: T) {
-        var current = all()
-        if let index = current.firstIndex(where: { $0.id == entity.id }) {
-            current[index] = entity
-        } else {
-            current.append(entity)
-        }
-        replaceAll(with: current)
-    }
-
-    func delete(_ entity: T) {
-        var current = all()
-        current.removeAll { $0.id == entity.id }
-        replaceAll(with: current)
-    }
-    
-    func replaceAll(with entities: [T]) {
-        do {
-            // Directly use the encoder property
-            let data = try self.encoder.encode(entities)
-            service.save(key, data)
-        } catch {
-            logger.error("Failed to encode '\(self.key)': \(error.localizedDescription)")
-        }
-    }
-
-    func deleteAll() {
         service.remove(key)
     }
 }
