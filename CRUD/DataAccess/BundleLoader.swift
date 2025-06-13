@@ -23,7 +23,7 @@ final class BundleService {
     }
 }
 
-// MARK: - Standalone Protocols
+// MARK: - Standalone Protocol
 
 // AVOID this for services. While convenient for simple cases, it hides
 // dependencies (like the Bundle) and mixes data loading with data modeling,
