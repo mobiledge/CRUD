@@ -40,6 +40,18 @@ struct JsonDefaultsObjectClient<T: Codable> {
     let encoder: JSONEncoder
     let decoder: JSONDecoder
     
+    init(
+        service: DefaultsService = .default,
+        key: String = String(describing: T.self),
+        encoder: JSONEncoder = JSONEncoder(),
+        decoder: JSONDecoder = JSONDecoder()
+    ) {
+        self.service = service
+        self.key = key
+        self.encoder = encoder
+        self.decoder = decoder
+    }
+    
     // MARK: - Public API
     
     func fetch() -> T? {
@@ -66,24 +78,6 @@ struct JsonDefaultsObjectClient<T: Codable> {
     }
 }
 
-extension JsonDefaultsObjectClient {
-    /// Creates a client configured to store a single object as JSON data.
-    static func json(
-        service: DefaultsService = .default,
-        key: String = String(describing: T.self),
-        encoder: JSONEncoder = JSONEncoder(),
-        decoder: JSONDecoder = JSONDecoder()
-    ) -> JsonDefaultsObjectClient<T> {
-        // The factory now passes the encoder/decoder objects directly.
-        JsonDefaultsObjectClient(
-            service: service,
-            key: key,
-            encoder: encoder,
-            decoder: decoder
-        )
-    }
-}
-
 
 // MARK: - 2. Client for JSON Object Collections (Property Approach)
 
@@ -92,10 +86,20 @@ extension JsonDefaultsObjectClient {
 struct JsonDefaultsCollectionClient<T: Codable & Identifiable> {
     let service: DefaultsService
     let key: String
-    
-    // Properties are now stored directly instead of using closures
     let encoder: JSONEncoder
     let decoder: JSONDecoder
+    
+    init(
+        service: DefaultsService = .default,
+        key: String = String(describing: T.self),
+        encoder: JSONEncoder = JSONEncoder(),
+        decoder: JSONDecoder = JSONDecoder()
+    ) {
+        self.service = service
+        self.key = key
+        self.encoder = encoder
+        self.decoder = decoder
+    }
 
     // MARK: - Public API
     
@@ -142,24 +146,5 @@ struct JsonDefaultsCollectionClient<T: Codable & Identifiable> {
 
     func deleteAll() {
         service.remove(key)
-    }
-}
-
-
-extension JsonDefaultsCollectionClient {
-    /// Creates a client configured to store a collection of objects as JSON data.
-    static func json(
-        service: DefaultsService = .default,
-        key: String = String(describing: T.self),
-        encoder: JSONEncoder = JSONEncoder(),
-        decoder: JSONDecoder = JSONDecoder()
-    ) -> JsonDefaultsCollectionClient<T> {
-        // The factory now passes the encoder/decoder objects directly.
-        JsonDefaultsCollectionClient(
-            service: service,
-            key: key,
-            encoder: encoder,
-            decoder: decoder
-        )
     }
 }
