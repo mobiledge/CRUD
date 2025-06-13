@@ -5,23 +5,104 @@ private let bundleLogger = Logger(subsystem: "io.mobiledge.CRUD", category: "Bun
 
 // MARK: - BundleService
 
-// BEST APPROACH: Use this service class. It cleanly encapsulates logic and
-// dependencies, making it easy to test, maintain, and scale.
-final class BundleService {
+struct BundleService {
     
-    let bundle: Bundle
-    init(bundle: Bundle = .main) {
-        self.bundle = bundle
+    /// The "witness" for the loading behavior. This closure property holds the loading logic,
+    /// allowing it to be replaced for different contexts (e.g., main bundle, test bundle, network).
+    var load: (_ fileName: String, _ ext: String) -> Data?
+    
+    /// Initializes the service with a specific loading behavior.
+    /// - Parameter load: A closure that takes a filename and extension and returns optional Data.
+    init(load: @escaping (_ fileName: String, _ ext: String) -> Data?) {
+        self.load = load
     }
     
-    func loadJSON<T: Decodable>(from fileName: String) -> T? {
-        loadJSONFromBundle(bundle, fileName: fileName)
-    }
-    
-    func loadPlist<T: Decodable>(from fileName: String) -> T? {
-        loadPlistFromBundle(bundle, fileName: fileName)
+    /// The default service instance, configured to load data from the application's main bundle.
+    static let `default` = BundleService { fileName, ext in
+        guard let url = Bundle.main.url(forResource: fileName, withExtension: ext) else {
+            bundleLogger.error("Failed to locate \(fileName).\(ext) in bundle.")
+            return nil
+        }
+        
+        do {
+            return try Data(contentsOf: url)
+        } catch {
+            bundleLogger.error("Failed to load data from \(url): \(error.localizedDescription)")
+            return nil
+        }
     }
 }
+
+// MARK: - Generic BundleClient
+
+struct BundleClient<T: Decodable & Identifiable> {
+    
+    let service: BundleService
+    let fileName: String
+    let ext: String
+    private let decode: (Data) throws -> T
+
+    private init(
+        service: BundleService,
+        fileName: String,
+        ext: String,
+        decode: @escaping (Data) throws -> T
+    ) {
+        self.service = service
+        self.fileName = fileName
+        self.ext = ext
+        self.decode = decode
+    }
+    
+    func load() -> T? {
+        // The call site now invokes the 'load' closure property on the service instance.
+        guard let data = service.load(fileName, ext) else {
+            return nil
+        }
+        
+        do {
+            return try decode(data)
+        } catch {
+            bundleLogger.error("Failed to decode \(T.self) from \(fileName).\(ext): \(error.localizedDescription)")
+            return nil
+        }
+    }
+}
+
+// MARK: - BundleClient Static Factories
+
+extension BundleClient {
+    
+    /// Creates a client configured to decode JSON files.
+    static func json(
+        service: BundleService = .default,
+        fileName: String = String(describing: T.self),
+        decoder: JSONDecoder = JSONDecoder()
+    ) -> BundleClient<T> {
+        BundleClient(
+            service: service,
+            fileName: fileName,
+            ext: "json",
+            decode: { data in try decoder.decode(T.self, from: data) }
+        )
+    }
+    
+    /// Creates a client configured to decode Property List (plist) files.
+    static func plist(
+        service: BundleService = .default,
+        fileName: String = String(describing: T.self),
+        decoder: PropertyListDecoder = PropertyListDecoder()
+    ) -> BundleClient<T> {
+        BundleClient(
+            service: service,
+            fileName: fileName,
+            ext: "plist",
+            decode: { data in try decoder.decode(T.self, from: data) }
+        )
+    }
+}
+
+
 
 // MARK: - Standalone Protocol
 
@@ -44,7 +125,7 @@ extension JsonBundleLoadable {
     static func load() -> Self? {
         return loadJSONFromBundle(bundle, fileName: fileName)
     }
-
+    
     // Default fileName is the name of the conforming type.
     static var fileName: String { String(describing: self) }
     
@@ -55,7 +136,7 @@ extension PlistBundleLoadable {
     static func load() -> Self? {
         return loadPlistFromBundle(bundle, fileName: fileName)
     }
-
+    
     // Default fileName is the name of the conforming type.
     static var fileName: String { String(describing: self) }
     
@@ -65,7 +146,7 @@ extension PlistBundleLoadable {
 // MARK: - Free Functions
 
 // These functions are pure, stateless, and can be used anywhere. But, lacks context and organization. As your application grows, having many global functions can pollute the global namespac
-private func loadJSONFromBundle<T: Decodable>(_ bundle: Bundle, fileName: String) -> T? {
+func loadJSONFromBundle<T: Decodable>(_ bundle: Bundle, fileName: String) -> T? {
     guard let url = bundle.url(forResource: fileName, withExtension: "json") else {
         bundleLogger.error("Could not find JSON resource in bundle: \(fileName, privacy: .public).json")
         return nil
@@ -84,7 +165,7 @@ private func loadJSONFromBundle<T: Decodable>(_ bundle: Bundle, fileName: String
     }
 }
 
-private func loadPlistFromBundle<T: Decodable>(_ bundle: Bundle, fileName: String) -> T? {
+func loadPlistFromBundle<T: Decodable>(_ bundle: Bundle, fileName: String) -> T? {
     guard let url = bundle.url(forResource: fileName, withExtension: "plist") else {
         bundleLogger.error("Could not find Plist resource in bundle: \(fileName, privacy: .public).plist")
         return nil
