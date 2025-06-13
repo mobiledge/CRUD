@@ -1,9 +1,9 @@
 import Foundation
 import os.log
 
-// MARK: - DefaultsService
-
 private let logger = Logger(subsystem: "io.mobiledge.CRUD", category: "Defaults")
+
+// MARK: - DefaultsService
 
 struct DefaultsService {
     let defaults: UserDefaults
