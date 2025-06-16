@@ -10,13 +10,9 @@ struct BundleService {
     /// The "witness" for the loading behavior. This closure property holds the loading logic,
     /// allowing it to be replaced for different contexts (e.g., main bundle, test bundle, network).
     var load: (_ fileName: String, _ ext: String) -> Data?
-    
-    /// Initializes the service with a specific loading behavior.
-    /// - Parameter load: A closure that takes a filename and extension and returns optional Data.
-    init(load: @escaping (_ fileName: String, _ ext: String) -> Data?) {
-        self.load = load
-    }
-    
+}
+
+extension BundleService {
     /// The default service instance, configured to load data from the application's main bundle.
     static let `default` = BundleService { fileName, ext in
         guard let url = Bundle.main.url(forResource: fileName, withExtension: ext) else {
@@ -55,7 +51,6 @@ struct BundleClient<T: Decodable & Identifiable> {
     }
     
     func load() -> T? {
-        // The call site now invokes the 'load' closure property on the service instance.
         guard let data = service.load(fileName, ext) else {
             return nil
         }
