@@ -189,87 +189,21 @@ struct HTTPResponse {
     let response: URLResponse
 }
 
-// MARK: - HTTPMiddleware
-
-protocol HTTPMiddleware {
-    /// Prepares a request before it is sent.
-    func prepare(request: HTTPRequest) -> HTTPRequest
-    /// Processes a response after it is received.
-    func process(response: HTTPResponse) throws -> HTTPResponse
-}
-
-extension HTTPMiddleware {
-    func prepare(request: HTTPRequest) -> HTTPRequest {
-        return request
-    }
-    func process(response: HTTPResponse) throws -> HTTPResponse {
-        return response
-    }
-}
-
-/// A middleware for adding common headers to every request.
-struct HeadersMiddleware: HTTPMiddleware {
-    let headers: [String: String]
-
-    func prepare(request: HTTPRequest) -> HTTPRequest {
-        return request.headers(headers)
-    }
-}
-
-/// A middleware for validating the HTTP status code of a response.
-struct StatusCodeValidationMiddleware: HTTPMiddleware {
-    func process(response: HTTPResponse) throws -> HTTPResponse {
-        guard let httpResponse = response.response as? HTTPURLResponse else {
-            throw HTTPError.badHTTPResponse
-        }
-        guard (200...299).contains(httpResponse.statusCode) else {
-            throw HTTPError.badStatusCode(httpResponse.statusCode)
-        }
-        return response
-    }
-}
-
-/// A middleware for logging the request and response using a structured Logger.
-struct LoggingMiddleware: HTTPMiddleware {
-    private let logger: Logger
-    init(logger: Logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "com.yourapp", category: "Networking")) {
-        self.logger = logger
-    }
-    func prepare(request: HTTPRequest) -> HTTPRequest {
-        let serverURL = request.server?.url.absoluteString ?? "N/A"
-        let method = request.method.rawValue
-        let fullPath = "\(serverURL)\(request.path)"
-        
-        // Using .debug for verbose network logs is a common practice.
-        logger.debug("➡️ \(method) \(fullPath)")
-        
-        return request
-    }
-    func process(response: HTTPResponse) throws -> HTTPResponse {
-        if let resp = response.response as? HTTPURLResponse, let url = resp.url {
-            logger.debug("⬅️ \(resp.statusCode) \(url.absoluteString)")
-        } else {
-            logger.debug("⬅️ Received a non-HTTP response.")
-        }
-        return response
-    }
-}
-
 // MARK: - NetworkService
 
 actor NetworkService {
     private let server: HTTPServer
     private let session: HTTPSession
-    private let middlewares: [HTTPMiddleware]
+    private let logger: Logger
 
     init(
         server: HTTPServer,
         session: HTTPSession,
-        middlewares: [HTTPMiddleware] = []
+        logger: Logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "com.yourapp", category: "Networking")
     ) {
         self.server = server
         self.session = session
-        self.middlewares = middlewares
+        self.logger = logger
     }
 
     func dispatch(request: HTTPRequest) async throws -> HTTPResponse {
@@ -279,22 +213,28 @@ actor NetworkService {
             req = req.server(server)
         }
         
-        // 2. Run all request-preparation steps.
-        for middleware in middlewares {
-            req = middleware.prepare(request: req)
-        }
+        // 2. Log the outgoing request.
+        let serverURL = req.server?.url.absoluteString ?? "N/A"
+        let method = req.method.rawValue
+        let fullPath = "\(serverURL)\(req.path)"
+        logger.debug("➡️ \(method) \(fullPath)")
         
         // 3. Generate the final URLRequest and send it.
         let urlRequest = try req.generateURLRequest()
         let (data, urlResponse) = try await session.dispatch(urlRequest)
-        var response = HTTPResponse(data: data, response: urlResponse)
         
-        // 4. Run all response-processing steps.
-        for middleware in middlewares {
-            response = try middleware.process(response: response)
+        // 4. Log and validate the incoming response.
+        if let resp = urlResponse as? HTTPURLResponse, let url = resp.url {
+            logger.debug("⬅️ \(resp.statusCode) \(url.absoluteString)")
+            guard (200...299).contains(resp.statusCode) else {
+                throw HTTPError.badStatusCode(resp.statusCode)
+            }
+        } else {
+            logger.debug("⬅️ Received a non-HTTP response.")
+            throw HTTPError.badHTTPResponse
         }
         
-        return response
+        return HTTPResponse(data: data, response: urlResponse)
     }
 }
 
@@ -302,8 +242,7 @@ extension NetworkService {
     static func live(server: HTTPServer) -> NetworkService {
         NetworkService(
             server: server,
-            session: .live(),
-            middlewares: [LoggingMiddleware(), StatusCodeValidationMiddleware()]
+            session: .live()
         )
     }
     static func mockSuccess(data: Data, urlResponse: URLResponse) -> NetworkService {
