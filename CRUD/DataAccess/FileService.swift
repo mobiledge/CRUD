@@ -3,42 +3,48 @@ import os.log
 
 private let logger = Logger(subsystem: "io.mobiledge.CRUD", category: "FileService")
 
-// MARK: - FileService (Unchanged)
+// MARK: - Core Service
 
 /// A service that provides the fundamental behaviors for file storage.
-/// This struct acts as a "witness" by holding closures for its core operations,
-/// allowing the underlying storage mechanism (file system, in-memory, etc.)
-/// to be swapped out for testing or different contexts.
 struct FileService {
-    var fetch: (_ filename: String) -> Data?
-    var save: (_ filename: String, _ data: Data) -> Void
+    var fetch: (_ filename: String) -> Result<Data, Error>
+    var save: (_ filename: String, _ data: Data) -> Result<Void, Error>
     var remove: (_ filename: String) -> Void
 }
 
 extension FileService {
+    /// A custom error type for file service operations.
+    enum FileError: Error {
+        case fileNotFound
+        case readFailed(Error)
+        case writeFailed(Error)
+        case directoryUnavailable
+    }
+
     /// The default service instance, configured to use the app's document directory.
     static let `default` = FileService(
         fetch: { filename in
-            guard let url = url(for: filename) else { return nil }
-            guard FileManager.default.fileExists(atPath: url.path) else { return nil }
+            guard let url = url(for: filename) else { return .failure(FileError.directoryUnavailable) }
+            guard FileManager.default.fileExists(atPath: url.path) else { return .failure(FileError.fileNotFound) }
             do {
-                return try Data(contentsOf: url)
+                return .success(try Data(contentsOf: url))
             } catch {
                 logger.error("Failed to read data from file '\(filename)': \(error.localizedDescription)")
-                return nil
+                return .failure(FileError.readFailed(error))
             }
         },
         save: { filename, data in
-            guard let url = url(for: filename) else { return }
+            guard let url = url(for: filename) else { return .failure(FileError.directoryUnavailable) }
             do {
                 try data.write(to: url, options: .atomic)
+                return .success(())
             } catch {
                 logger.error("Failed to save data to file '\(filename)': \(error.localizedDescription)")
+                return .failure(FileError.writeFailed(error))
             }
         },
         remove: { filename in
-            guard let url = url(for: filename) else { return }
-            guard FileManager.default.fileExists(atPath: url.path) else { return }
+            guard let url = url(for: filename), FileManager.default.fileExists(atPath: url.path) else { return }
             do {
                 try FileManager.default.removeItem(at: url)
             } catch {
@@ -47,91 +53,198 @@ extension FileService {
         }
     )
     
-    /// A private helper to get the URL for a file in the document directory.
     private static func url(for filename: String) -> URL? {
-        guard let docDir = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first else {
-            logger.error("Could not access document directory.")
-            return nil
-        }
-        return docDir.appendingPathComponent(filename)
+        FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first?.appendingPathComponent(filename)
     }
 
     /// A mock service that uses an in-memory dictionary for storage.
-    /// Perfect for SwiftUI previews or unit tests.
     static func mock(initialFiles: [String: Data] = [:]) -> FileService {
         var store = initialFiles
         return FileService(
-            fetch: { filename in store[filename] },
-            save: { filename, data in store[filename] = data },
+            fetch: { filename in store[filename].map { .success($0) } ?? .failure(FileError.fileNotFound) },
+            save: { filename, data in store[filename] = data; return .success(()) },
             remove: { filename in store[filename] = nil }
         )
     }
 }
 
 
-// MARK: - FileClient
+// MARK: - Approach 1: Protocol-Oriented Resource
 
-/// A client for CRUD operations on a collection of `Codable & Identifiable` objects
-/// within a single file, specifically using the JSON format.
-struct FileClient<T: Codable & Identifiable> {
+// Trade-offs: Offers a clean, declarative API that works on a single service instance. It provides better error handling
+// and type safety by linking the model to its storage properties. Its main requirement is defining a resource type for each collection.
+/*
+ // Usage Example:
+ struct Task: Codable, Identifiable { let id: UUID; var title: String }
+ struct TaskCollection: FileCollectionResource { typealias Item = Task } // Define the resource
+
+ let service = FileService.default
+ let tasksToSave = [Task(id: .init(), title: "First"), Task(id: .init(), title: "Second")]
+ 
+ // Save multiple items to the collection
+ _ = service.saveMany(upserting: tasksToSave, to: TaskCollection.self)
+ 
+ // Get all items
+ if let tasks = try? service.all(for: TaskCollection.self).get() {
+     print("Found \(tasks.count) tasks.") // Found 2 tasks.
+ }
+*/
+protocol FileCollectionResource {
+    associatedtype Item: Identifiable
+    static var filename: String { get }
+    static func encode(items: [Item]) -> Result<Data, Error>
+    static func decode(from data: Data) -> Result<[Item], Error>
+}
+
+extension FileCollectionResource where Item: Codable {
+    static var filename: String { "\(String(describing: Item.self).lowercased())s.json" }
+    static func encode(items: [Item]) -> Result<Data, Error> { Result { try JSONEncoder().encode(items) } }
+    static func decode(from data: Data) -> Result<[Item], Error> { Result { try JSONDecoder().decode([Item].self, from: data) } }
+}
+
+extension FileService {
+    // MARK: Read Operations
+    func all<R: FileCollectionResource>(for resource: R.Type) -> Result<[R.Item], Error> {
+        switch fetch(resource.filename) {
+        case .success(let data):
+            // If the file is found, proceed with decoding.
+            return R.decode(from: data)
+        case .failure(let error):
+            // If the error is `fileNotFound`, it's not a true failure for `all()`.
+            // It simply means the collection is empty.
+            if case FileError.fileNotFound = error {
+                return .success([])
+            }
+            // For all other errors, propagate the failure.
+            return .failure(error)
+        }
+    }
+    
+    func all<R: FileCollectionResource>(for resource: R.Type, where predicate: (R.Item) -> Bool) -> Result<[R.Item], Error> {
+        all(for: resource).map { $0.filter(predicate) }
+    }
+    
+    func find<R: FileCollectionResource>(id: R.Item.ID, in resource: R.Type) -> Result<R.Item?, Error> {
+        all(for: resource).map { items in items.first { $0.id == id } }
+    }
+    
+    func find<R: FileCollectionResource>(where predicate: (R.Item) -> Bool, in resource: R.Type) -> Result<R.Item?, Error> {
+        all(for: resource).map { items in items.first(where: predicate) }
+    }
+
+    // MARK: Write Operations
+    func replaceAll<R: FileCollectionResource>(with entities: [R.Item], for resource: R.Type) -> Result<Void, Error> {
+        R.encode(items: entities).flatMap { data in save(resource.filename, data) }
+    }
+
+    func save<R: FileCollectionResource>(_ entity: R.Item, to resource: R.Type) -> Result<Void, Error> {
+        all(for: resource).flatMap { currentItems in
+            var items = currentItems
+            if let index = items.firstIndex(where: { $0.id == entity.id }) {
+                items[index] = entity
+            } else {
+                items.append(entity)
+            }
+            return replaceAll(with: items, for: resource)
+        }
+    }
+    
+    func saveMany<R: FileCollectionResource>(upserting entities: [R.Item], to resource: R.Type) -> Result<Void, Error> {
+        guard !entities.isEmpty else { return .success(()) }
+        return all(for: resource).flatMap { currentItems in
+            var itemDict = Dictionary(uniqueKeysWithValues: currentItems.map { ($0.id, $0) })
+            for entity in entities {
+                itemDict[entity.id] = entity
+            }
+            return replaceAll(with: Array(itemDict.values), for: resource)
+        }
+    }
+
+    // MARK: Delete Operations
+    func delete<R: FileCollectionResource>(_ entity: R.Item, from resource: R.Type) -> Result<Void, Error> {
+        all(for: resource).flatMap { currentItems in
+            var items = currentItems
+            items.removeAll { $0.id == entity.id }
+            return replaceAll(with: items, for: resource)
+        }
+    }
+
+    func delete<R: FileCollectionResource>(subset entities: [R.Item], from resource: R.Type) -> Result<Void, Error> {
+        guard !entities.isEmpty else { return .success(()) }
+        return all(for: resource).flatMap { currentItems in
+            var items = currentItems
+            let idsToDelete = Set(entities.map { $0.id })
+            items.removeAll { idsToDelete.contains($0.id) }
+            return replaceAll(with: items, for: resource)
+        }
+    }
+    
+    func deleteAll<R: FileCollectionResource>(for resource: R.Type) {
+        remove(resource.filename)
+    }
+}
+
+
+// MARK: - Approach 2: Configured Client
+
+// Trade-offs: Self-contained and bundles all logic for a collection into one object. However, it swallows errors,
+// provides weaker error handling, and requires instantiating and managing a client object for each collection.
+/*
+ // Usage Example:
+ struct Task: Codable, Identifiable { let id: UUID; var title: String }
+
+ let taskClient = FileClient<Task>(filename: "all_tasks.json")
+ let tasksToSave = [Task(id: .init(), title: "First"), Task(id: .init(), title: "Second")]
+
+ // Save multiple items
+ taskClient.saveMany(upserting: tasksToSave)
+ 
+ // Get all items
+ let tasks = taskClient.all()
+ print("Found \(tasks.count) tasks.") // Found 2 tasks.
+*/
+struct FileClient<T: Identifiable> {
     let service: FileService
     let filename: String
+    let encode: ([T]) -> Result<Data, Error>
+    let decode: (Data) -> Result<[T], Error>
 
-    let encoder: JSONEncoder
-    let decoder: JSONDecoder
-    
     init(
         service: FileService = .default,
         filename: String,
-        encoder: JSONEncoder = JSONEncoder(),
-        decoder: JSONDecoder = JSONDecoder()
+        encode: @escaping ([T]) -> Result<Data, Error>,
+        decode: @escaping (Data) -> Result<[T], Error>
     ) {
         self.service = service
         self.filename = filename
-        self.encoder = encoder
-        self.decoder = decoder
+        self.encode = encode
+        self.decode = decode
     }
 
-    // MARK: - Read Operations
-    
-    /// Fetches the entire collection from the file.
-    /// - Returns: An array of decoded items, or an empty array if the file doesn't exist or fails to decode.
+    // MARK: Read Operations
     func all() -> [T] {
-        guard let data = service.fetch(filename) else { return [] }
-        do {
-            return try self.decoder.decode([T].self, from: data)
-        } catch {
+        guard case .success(let data) = service.fetch(filename) else { return [] }
+        switch decode(data) {
+        case .success(let items): return items
+        case .failure(let error):
             logger.error("Failed to decode '\(self.filename)': \(error.localizedDescription)")
             return []
         }
     }
     
-    /// Returns all items in the collection that satisfy the given predicate.
-    /// - Parameter predicate: A closure that takes an item as its argument and returns a Boolean value indicating whether the item should be included in the returned array.
-    /// - Returns: An array of the items that satisfy the predicate.
     func all(where predicate: (T) -> Bool) -> [T] {
-        return all().filter(predicate)
+        all().filter(predicate)
     }
     
-    /// Finds the first item in the collection with the specified ID.
-    /// - Parameter id: The unique identifier of the item to find.
-    /// - Returns: The first item that matches the ID, or `nil` if no match is found.
     func find(id: T.ID) -> T? {
-        return all().first { $0.id == id }
+        all().first { $0.id == id }
     }
     
-    /// Finds the first item in the collection that satisfies the given predicate.
-    /// - Parameter predicate: A closure that returns a Boolean value.
-    /// - Returns: The first item in the collection that satisfies the `predicate`, or `nil` if no such item is found.
     func find(where predicate: (T) -> Bool) -> T? {
-        return all().first(where: predicate)
+        all().first(where: predicate)
     }
-    
-    // MARK: - Write Operations
-    
-    /// Saves (inserts or updates) a single item in the collection.
-    /// This is a "read-modify-write" operation.
-    /// - Parameter entity: The item to save.
+
+    // MARK: Write Operations
     func save(_ entity: T) {
         var items = all()
         if let index = items.firstIndex(where: { $0.id == entity.id }) {
@@ -142,45 +255,32 @@ struct FileClient<T: Codable & Identifiable> {
         replaceAll(with: items)
     }
     
-    /// Efficiently saves (inserts or updates) multiple items in the collection.
-    /// This performs only one file read and one file write for the entire operation.
-    /// - Parameter entities: The array of items to save.
     func saveMany(upserting entities: [T]) {
         guard !entities.isEmpty else { return }
         let items = all()
         var itemDict = Dictionary(uniqueKeysWithValues: items.map { ($0.id, $0) })
-        
         for entity in entities {
             itemDict[entity.id] = entity
         }
-        
         replaceAll(with: Array(itemDict.values))
     }
     
-    /// Replaces the entire collection in the file with a new array of items.
-    /// - Parameter entities: The new array of items to persist.
     func replaceAll(with entities: [T]) {
-        do {
-            let data = try self.encoder.encode(entities)
-            service.save(filename, data)
-        } catch {
+        switch encode(entities) {
+        case .success(let data):
+            _ = service.save(filename, data)
+        case .failure(let error):
             logger.error("Failed to encode '\(self.filename)': \(error.localizedDescription)")
         }
     }
-
-    // MARK: - Delete Operations
     
-    /// Deletes a single item from the collection.
-    /// - Parameter entity: The item to delete.
+    // MARK: Delete Operations
     func delete(_ entity: T) {
         var items = all()
         items.removeAll { $0.id == entity.id }
         replaceAll(with: items)
     }
     
-    /// Efficiently deletes multiple items from the collection.
-    /// This performs only one file read and one file write for the entire operation.
-    /// - Parameter entities: The array of items to delete.
     func delete(subset entities: [T]) {
         guard !entities.isEmpty else { return }
         var items = all()
@@ -189,8 +289,20 @@ struct FileClient<T: Codable & Identifiable> {
         replaceAll(with: items)
     }
 
-    /// Deletes the file, thereby removing the entire collection.
     func deleteAll() {
         service.remove(filename)
+    }
+}
+
+extension FileClient where T: Codable {
+    /// Convenience initializer for `Codable` types that use JSON.
+    init(
+        service: FileService = .default,
+        filename: String
+    ) {
+        self.service = service
+        self.filename = filename
+        self.encode = { items in Result { try JSONEncoder().encode(items) } }
+        self.decode = { data in Result { try JSONDecoder().decode([T].self, from: data) } }
     }
 }
