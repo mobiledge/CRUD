@@ -12,7 +12,8 @@ struct ContentView: View {
         TabView {
             Tab("Bookmarks", systemImage: "tray") {
                 NavigationStack {
-                    BookmarkListView()
+//                    BookmarkListView()
+                    BookmarkCRUDTestView()
                 }
             }
             Tab("Products", systemImage: "tray") {
