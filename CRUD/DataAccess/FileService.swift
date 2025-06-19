@@ -74,7 +74,10 @@ extension FileService {
  Trade-offs:
  Offers a clean, declarative API that works on a single service instance. It provides better error handling
  and type safety by linking the model to its storage properties. Its main requirement is for the model type itself to conform to the protocol.
- 
+ */
+
+// MARK: FileCollectionResource
+/**
  Usage Example:
  struct Task: Codable, Identifiable, FileCollectionResource {
  let id: UUID
@@ -90,14 +93,15 @@ protocol FileCollectionResource {
     static func decode(from data: Data) -> Result<[Self], Error>
 }
 
-extension FileCollectionResource where Self: Codable {
+protocol JSONFileCollectionResource: FileCollectionResource, Codable, Identifiable {}
+
+extension JSONFileCollectionResource {
     static var filename: String { "\(String(describing: Self.self).lowercased())s.json" }
     static func encode(items: [Self]) -> Result<Data, Error> { Result { try JSONEncoder().encode(items) } }
     static func decode(from data: Data) -> Result<[Self], Error> { Result { try JSONDecoder().decode([Self].self, from: data) } }
 }
 
 extension FileService {
-    // MARK: Read Operations
     func all<T: FileCollectionResource>(for resource: T.Type) -> Result<[T], Error> {
         switch fetch(T.filename) {
         case .success(let data):
@@ -126,7 +130,6 @@ extension FileService {
         all(for: resource).map { items in items.first(where: predicate) }
     }
     
-    // MARK: Write Operations
     func replaceAll<T: FileCollectionResource>(with items: [T], for resource: T.Type) -> Result<Void, Error> {
         T.encode(items: items).flatMap { data in save(T.filename, data) }
     }
@@ -154,7 +157,6 @@ extension FileService {
         }
     }
     
-    // MARK: Delete Operations
     func delete<T: FileCollectionResource & Identifiable>(_ item: T, from resource: T.Type) -> Result<Void, Error> {
         all(for: resource).flatMap { currentItems in
             var items = currentItems
@@ -178,6 +180,118 @@ extension FileService {
     }
 }
 
+// MARK: Stateful Repository
+/**
+ Usage Example:
+ let bookmarkRepo = FileResourceRepository<Bookmark>()
+ bookmarkRepo.save(.init(id: "1", url: URL(string: "https://apple.com")!, tags: ["swift", "news"]))
+ let allBookmarks = bookmarkRepo.all()
+ */
+class JSONFileCollectionResourceRepository<T: JSONFileCollectionResource> {
+    private let service: FileService
+    private(set) var items: [T] = []
+
+    /// Initializes the repository, loading items from the specified file service.
+    /// - Parameter service: The file service to use for persistence. Defaults to `.default`.
+    init(service: FileService = .default) {
+        self.service = service
+        loadItems()
+    }
+    
+    /// Loads items from the file into the in-memory `items` array.
+    private func loadItems() {
+        switch service.all(for: T.self) {
+        case .success(let loadedItems):
+            self.items = loadedItems
+            logger.info("Successfully loaded \(loadedItems.count) items for \(String(describing: T.self))")
+        case .failure(let error):
+            // This case handles errors like decoding failures. `service.all(for:)`
+            // already handles `fileNotFound` by returning an empty array.
+            self.items = []
+            logger.error("Failed to load items for \(String(describing: T.self)): \(error.localizedDescription)")
+        }
+    }
+
+    /// Saves the current in-memory `items` array to the file.
+    private func persist() {
+        switch service.replaceAll(with: items, for: T.self) {
+        case .success:
+            logger.info("Successfully persisted \(self.items.count) items for \(String(describing: T.self))")
+        case .failure(let error):
+            logger.error("Failed to persist items for \(String(describing: T.self)): \(error.localizedDescription)")
+            // In a real application, you might add more robust error handling here,
+            // such as notifying the user or attempting to roll back the in-memory change.
+        }
+    }
+    
+    /// Returns all items currently in the repository.
+    func all() -> [T] {
+        return items
+    }
+    
+    /// Returns all items that satisfy the given predicate.
+    func all(where predicate: (T) -> Bool) -> [T] {
+        return items.filter(predicate)
+    }
+    
+    /// Finds an item by its unique identifier.
+    func find(id: T.ID) -> T? {
+        return items.first { $0.id == id }
+    }
+    
+    /// Finds the first item that satisfies the given predicate.
+    func find(where predicate: (T) -> Bool) -> T? {
+        return items.first(where: predicate)
+    }
+    
+    /// Saves an entity. If an entity with the same ID already exists, it is updated. Otherwise, it is added.
+    func save(_ entity: T) {
+        if let index = items.firstIndex(where: { $0.id == entity.id }) {
+            items[index] = entity
+        } else {
+            items.append(entity)
+        }
+        persist()
+    }
+    
+    /// Saves multiple entities. If an entity with the same ID already exists, it is updated. Otherwise, it is added.
+    func saveMany(upserting entities: [T]) {
+        guard !entities.isEmpty else { return }
+        // Use a dictionary for an efficient upsert operation.
+        var itemDict = Dictionary(uniqueKeysWithValues: items.map { ($0.id, $0) })
+        for entity in entities {
+            itemDict[entity.id] = entity
+        }
+        items = Array(itemDict.values)
+        persist()
+    }
+    
+    /// Replaces all existing items with a new collection of entities.
+    func replaceAll(with entities: [T]) {
+        items = entities
+        persist()
+    }
+    
+    /// Deletes a specific entity from the repository.
+    func delete(_ entity: T) {
+        items.removeAll { $0.id == entity.id }
+        persist()
+    }
+    
+    /// Deletes a subset of entities from the repository.
+    func delete(subset entities: [T]) {
+        guard !entities.isEmpty else { return }
+        let idsToDelete = Set(entities.map { $0.id })
+        items.removeAll { idsToDelete.contains($0.id) }
+        persist()
+    }
+    
+    /// Deletes all items from the repository and removes the underlying file.
+    func deleteAll() {
+        items.removeAll()
+        service.deleteAll(for: T.self)
+    }
+}
 
 // MARK: - Approach 2: Configured Client
 
@@ -185,7 +299,10 @@ extension FileService {
  Trade-offs:
  Self-contained and bundles all logic for a collection into one object. However, it swallows errors,
  provides weaker error handling, and requires instantiating and managing a client object for each collection.
+*/
 
+// MARK: FileClient
+/**
  Usage Example:
  struct Task: Codable, Identifiable { let id: UUID; var title: String }
  
@@ -217,7 +334,6 @@ struct FileClient<T: Identifiable> {
         self.decode = decode
     }
     
-    // MARK: Read Operations
     func all() -> [T] {
         guard case .success(let data) = service.fetch(filename) else { return [] }
         switch decode(data) {
@@ -240,7 +356,6 @@ struct FileClient<T: Identifiable> {
         all().first(where: predicate)
     }
     
-    // MARK: Write Operations
     func save(_ entity: T) {
         var items = all()
         if let index = items.firstIndex(where: { $0.id == entity.id }) {
@@ -270,7 +385,6 @@ struct FileClient<T: Identifiable> {
         }
     }
     
-    // MARK: Delete Operations
     func delete(_ entity: T) {
         var items = all()
         items.removeAll { $0.id == entity.id }
