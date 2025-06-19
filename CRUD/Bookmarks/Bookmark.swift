@@ -6,14 +6,39 @@ struct Bookmark: Codable, Identifiable  {
     let url: URL
     let tags: Set<String>
     
-    func matches(searchText: String) -> Bool {
-        let titleMatch = title?.localizedCaseInsensitiveContains(searchText) ?? false
-        let urlMatch = url.absoluteString.localizedCaseInsensitiveContains(searchText)
+    func matches(text: String) -> Bool {
+        if text.isEmpty {
+            return true
+        }
+        let titleMatch = title?.localizedCaseInsensitiveContains(text) ?? false
+        let urlMatch = url.absoluteString.localizedCaseInsensitiveContains(text)
         let tagMatch = tags.contains { tag in
-            tag.localizedCaseInsensitiveContains(searchText)
+            tag.localizedCaseInsensitiveContains(text)
         }
         return titleMatch || urlMatch || tagMatch
     }
+    
+    func matches(tokens: [Token]) -> Bool {
+        if tokens.isEmpty {
+            return true
+        }
+        return tokens.allSatisfy { token in
+            tags.contains { tag in
+                tag.localizedCaseInsensitiveContains(token.name)
+            }
+        }
+    }
+    
+    func matches(text: String, andTokens tokens: [Token]) -> Bool {
+        // Must match the text AND all tokens
+        let matches = matches(text: text) && matches(tokens: tokens)
+        return matches
+    }
+}
+
+struct Token: Identifiable {
+    var id: String { name }
+    var name: String
 }
 
 extension Bookmark {

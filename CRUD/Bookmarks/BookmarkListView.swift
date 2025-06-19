@@ -5,24 +5,41 @@ struct BookmarkListView: View {
     
     @Environment(BookmarkRepository.self) private var repo
     @State private var searchText = ""
+    @State private var currentTokens = [Token]()
     
     private var items: [Bookmark] {
         repo.items
     }
     
     private var filteredItems: [Bookmark] {
-        if searchText.isEmpty {
+        if searchText.isEmpty && currentTokens.isEmpty {
             return items
         } else {
-            return items.filter { $0.matches(searchText: searchText) }
+            return items.filter { $0.matches(text: searchText, andTokens: currentTokens) }
         }
     }
     
     var body: some View {
+        
+        Button("Add Token") {
+            let tag = repo.items.randomElement()!.tags.randomElement()!
+            let token = Token(name: tag)
+            currentTokens.append(token)
+        }
+        
+        Text("Count: \(filteredItems.count)")
+        
         List(filteredItems) { bookmark in
             BookmarkRowView(bookmark: bookmark)
         }
-        .searchable(text: $searchText, prompt: "Search bookmarks...")
+//        .searchable(text: $searchText, prompt: "Search bookmarks...")
+        .searchable(
+            text: $searchText,
+            tokens: $currentTokens,
+            prompt: Text("Type to filter, or use # for tags")
+        ) { token in
+            Text(token.name)
+        }
         .animation(.default, value: filteredItems.count)
         .navigationTitle("Bookmarks")
     }
