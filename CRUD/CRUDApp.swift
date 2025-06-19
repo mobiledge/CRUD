@@ -11,16 +11,13 @@ import SwiftUI
 struct CRUDApp: App {
     
     //Bookmarks stuff
-    @State private var bookmarkRepository = BookmarkRepository()
+    @State private var bookmarkRepository = BookmarkRepository.mock()
     
     private let service = ServiceProvider(networkService: .live(server: .local))
     
     var body: some Scene {
         WindowGroup {
             ContentView()
-                .onAppear {
-                    bookmarkRepository.saveMany(upserting: Bookmark.mockCollection)
-                }
                 .environment(service)
                 .environment(bookmarkRepository)
         }

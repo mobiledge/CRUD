@@ -56,3 +56,11 @@ extension Bookmark: BundleResourceCollection {}
 extension Bookmark: JSONFileCollectionResource {}
 
 typealias BookmarkRepository = JSONFileCollectionResourceRepository<Bookmark>
+
+extension BookmarkRepository {
+    static func mock() -> BookmarkRepository {
+        let repo = BookmarkRepository()
+        repo.saveMany(upserting: Bookmark.mockCollection)
+        return repo
+    }
+}
