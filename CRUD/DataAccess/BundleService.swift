@@ -18,7 +18,7 @@ extension BundleService {
     }
 }
 
-// MARK: - Approach 1: Client
+// MARK: - Approach 1
 
 // Trade-offs: Direct and explicit setup for a single resource.
 // However, this approach is verbose, less reusable, and can lead to scattered configuration as an application grows.
@@ -34,6 +34,8 @@ extension BundleService {
  )
  let userResult = userClient.dataForResource()
 */
+
+// MARK: BundleClient<T>
 struct BundleClient<T> {
     let service: BundleService
     let resource: String
@@ -46,51 +48,57 @@ struct BundleClient<T> {
     }
 }
 
-// MARK: - Approach 2: Protocol-Driven Resource
+// MARK: - Approach 2
+/// Protocol-Driven Resource
 
-// Trade-offs: The most elegant and scalable approach with minimal boilerplate due to convention-over-configuration.
-// The main requirement is that model types must conform to the `BundleResource` protocol.
-/*
- // Usage Example:
- struct User: Codable {}
- struct Config: Codable {}
 
- // Make models conform (often a single line).
- extension User: BundleResource {} // Assumes file is "user.json"
- extension Config: BundleResource {
-    static var resourceName: String { "configuration" } // Override for "configuration.json"
- }
-
- // Use the clean, type-safe syntax.
- let userResult = BundleService.default.data(for: User.self)
- let configResult = BundleService.default.data(for: Config.self)
-*/
-/// A protocol for types that can be decoded from a specific bundle resource.
+// MARK: BundleResource
 protocol BundleResource {
-    /// The name of the resource file (defaults to the lowercase type name).
     static var resourceName: String { get }
-    /// The extension of the resource file (defaults to "json").
     static var resourceExtension: String { get }
-    /// Decodes the raw data into the model type.
     static func decode(from data: Data) -> Result<Self, Error>
 }
 
 extension BundleResource where Self: Decodable {
-    // Provides powerful default implementations for any `Decodable` type.
-    static var resourceName: String { String(describing: self).lowercased() }
+    static var resourceName: String { "\(String(describing: Self.self).lowercased()).json" }
     static var resourceExtension: String { "json" }
     static func decode(from data: Data) -> Result<Self, Error> {
         Result { try JSONDecoder().decode(Self.self, from: data) }
     }
 }
 
+/// BundleService + BundleResource
 extension BundleService {
-    /// Fetches and decodes data for a type conforming to `BundleResource`.
-    func data<T: BundleResource>(for resourceType: T.Type) -> Result<T, Error> {
+    func get<T: BundleResource>(_ resourceType: T.Type) -> Result<T, Error> {
         dataForResource(resourceType.resourceName, resourceType.resourceExtension)
             .flatMap { resourceType.decode(from: $0) }
     }
 }
+
+// MARK: BundleResourceCollection
+protocol BundleResourceCollection {
+    static var resourceName: String { get }
+    static var resourceExtension: String { get }
+    static func decode(from data: Data) -> Result<[Self], Error>
+}
+
+extension BundleResourceCollection where Self: Decodable {
+    static var resourceName: String { "\(String(describing: Self.self).lowercased())s" }
+    static var resourceExtension: String { "json" }
+    static func decode(from data: Data) -> Result<Self, Error> {
+        Result { try JSONDecoder().decode(Self.self, from: data) }
+    }
+}
+
+/// BundleService + BundleResourceCollection
+extension BundleService {
+    func get<T: BundleResourceCollection>(_ resourceType: T.Type) -> Result<[T], Error> {
+        dataForResource(resourceType.resourceName, resourceType.resourceExtension)
+            .flatMap { resourceType.decode(from: $0) }
+    }
+}
+
+
 
 // MARK: - Shared Infrastructure
 
@@ -125,9 +133,9 @@ extension Bundle {
     }
 }
 
-// MARK: - Approach 3: - Free Functions
-
-// These functions are pure, stateless, and can be used anywhere. But, lacks context and organization. As your application grows, having many global functions can pollute the global namespac
+// MARK: - Approach 3
+/// Free Functions:
+///   These functions are pure, stateless, and can be used anywhere. But, lacks context and organization. As your application grows, having many global functions can pollute the global namespac
 func loadJSONFromBundle<T: Decodable>(_ bundle: Bundle, fileName: String) -> T? {
     guard let url = bundle.url(forResource: fileName, withExtension: "json") else {
         logger.error("Could not find JSON resource in bundle: \(fileName, privacy: .public).json")

@@ -180,7 +180,7 @@ extension FileService {
     }
 }
 
-// MARK: Stateful Repository
+// MARK: JSONFileCollectionResourceRepository
 /**
  Usage Example:
  let bookmarkRepo = FileResourceRepository<Bookmark>()

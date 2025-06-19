@@ -1,0 +1,103 @@
+[
+  {
+    "id": "B6C2B2A3-446A-4D9A-97B2-2E24E1A4A7A7",
+    "url": "https://developer.apple.com/swift/",
+    "tags": ["swift", "programming", "apple", "development"]
+  },
+  {
+    "id": "D1E8F2B9-819A-4C7B-8E7F-9A0B3D5C7E9A",
+    "url": "https://www.hackingwithswift.com",
+    "tags": ["swift", "tutorials", "learning", "ios"]
+  },
+  {
+    "id": "A9F8E7D6-C5B4-A3D2-B1A0-9F8E7D6C5B4A",
+    "url": "https://www.raywenderlich.com/ios",
+    "tags": ["ios", "mobile", "development", "tutorials"]
+  },
+  {
+    "id": "F3E2D1C0-B9A8-7654-3210-FEDCBA987654",
+    "url": "https://github.com",
+    "tags": ["git", "version control", "development", "tools"]
+  },
+  {
+    "id": "1A2B3C4D-5E6F-7890-ABCD-EFEF12121212",
+    "url": "https://stackoverflow.com",
+    "tags": ["programming", "q&a", "development", "community"]
+  },
+  {
+    "id": "2B3C4D5E-6F78-90AB-CDEF-12121212EFEF",
+    "url": "https://www.swift.org",
+    "tags": ["swift", "official", "documentation", "news"]
+  },
+  {
+    "id": "3C4D5E6F-7890-ABCD-EF12-1212EFEF1212",
+    "url": "https://medium.com/swift-programming",
+    "tags": ["swift", "articles", "blog", "community"]
+  },
+  {
+    "id": "4D5E6F78-90AB-CDEF-1212-EFEF12121212",
+    "url": "https://developer.apple.com/documentation/uikit",
+    "tags": ["uikit", "ios", "apple", "framework"]
+  },
+  {
+    "id": "5E6F7890-ABCD-EF12-1212-12121212EFEF",
+    "url": "https://developer.apple.com/documentation/swiftui",
+    "tags": ["swiftui", "ios", "apple", "framework", "declarative"]
+  },
+  {
+    "id": "6F7890AB-CDEF-1212-EFEF-121212121212",
+    "url": "https://nshipster.com",
+    "tags": ["swift", "objective-c", "ios", "blog"]
+  },
+  {
+    "id": "7890ABCD-EF12-1212-1212-EFEF12121212",
+    "url": "https://www.donnywals.com",
+    "tags": ["swift", "ios", "blog", "combine"]
+  },
+  {
+    "id": "890ABCDE-F121-2121-212E-FEF121212121",
+    "url": "https://figma.com",
+    "tags": ["design", "ui", "ux", "tools"]
+  },
+  {
+    "id": "90ABCDEF-1212-1212-EFEF-121212121212",
+    "url": "https://dribbble.com",
+    "tags": ["design", "inspiration", "ui", "ux"]
+  },
+  {
+    "id": "ABCDEF12-1212-EFEF-1212-121212121212",
+    "url": "https://developer.android.com/kotlin",
+    "tags": ["kotlin", "android", "programming", "mobile"]
+  },
+  {
+    "id": "BCDEF121-212E-FEF1-2121-212121212121",
+    "url": "https://tailwindcss.com",
+    "tags": ["css", "web", "frontend", "framework"]
+  },
+  {
+    "id": "CDEF1212-12EF-EF12-1212-121212121212",
+    "url": "https://react.dev",
+    "tags": ["javascript", "web", "frontend", "library"]
+  },
+  {
+    "id": "DEF12121-2EFE-F121-2121-212121212121",
+    "url": "https://vuejs.org",
+    "tags": ["javascript", "web", "frontend", "framework"]
+  },
+  {
+    "id": "EF121212-EFEF-1212-1212-121212121212",
+    "url": "https://firebase.google.com",
+    "tags": ["backend", "database", "cloud", "google"]
+  },
+  {
+    "id": "F1212121-FEF1-2121-2121-212121212121",
+    "url": "https://www.mongodb.com/atlas",
+    "tags": ["database", "nosql", "cloud", "backend"]
+  },
+  {
+    "id": "12121212-1212-1212-1212-121212121212",
+    "url": "https://developer.apple.com/videos/wwdc/",
+    "tags": ["apple", "wwdc", "conference", "videos"]
+  }
+]
+

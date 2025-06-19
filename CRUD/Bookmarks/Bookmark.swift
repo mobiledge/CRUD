@@ -6,4 +6,6 @@ struct Bookmark: Codable, Identifiable  {
     let tags: Set<String>
 }
 
+extension Bookmark: BundleResourceCollection {}
+
 extension Bookmark: JSONFileCollectionResource {}
