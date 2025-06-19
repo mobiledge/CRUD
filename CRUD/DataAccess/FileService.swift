@@ -188,7 +188,7 @@ extension FileService {
  let allBookmarks = bookmarkRepo.all()
  */
 @Observable
-final class JSONFileCollectionResourceRepository<T: JSONFileCollectionResource> {
+class JSONFileCollectionResourceRepository<T: JSONFileCollectionResource> {
     private let service: FileService
     private(set) var items: [T] = []
 

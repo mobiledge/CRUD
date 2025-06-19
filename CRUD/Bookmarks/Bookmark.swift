@@ -20,3 +20,5 @@ extension Bookmark {
 extension Bookmark: BundleResourceCollection {}
 
 extension Bookmark: JSONFileCollectionResource {}
+
+typealias BookmarkRepository = JSONFileCollectionResourceRepository<Bookmark>

@@ -5,22 +5,14 @@ struct BookmarkListView: View {
     
     @State private var itemsRemoved = [Bookmark]()
     
+    @Environment(BookmarkRepository.self) private var repo
+    
     private var items: [Bookmark] {
         repo.items
     }
-    let repo = JSONFileCollectionResourceRepository<Bookmark>(service: FileService.default)
+    
+    
     var body: some View {
-        Text("Repo \(items.count)  Removed: \(itemsRemoved.count)")
-        Button("Load & Save", action: loadInitial)
-        HStack {
-            Button("Remove All", action: removeAll)
-            Button("Remove First", action: removeFirst)
-        }
-        HStack {
-            Button("Insert All", action: insertAll)
-            Button("Insert First", action: insertOne)
-        }
-
         List(items) { bookmark in
             BookmarkRowView(bookmark: bookmark)
         }
