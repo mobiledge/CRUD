@@ -4,16 +4,35 @@ import SwiftUI
 struct BookmarkListView: View {
     
     @Environment(BookmarkRepository.self) private var repo
+    @State private var searchText = ""
     
     private var items: [Bookmark] {
         repo.items
     }
     
+    private var filteredItems: [Bookmark] {
+        if searchText.isEmpty {
+            return items
+        } else {
+            return items.filter { bookmark in
+                // Search in title, URL, and tags
+                let titleMatch = bookmark.title?.localizedCaseInsensitiveContains(searchText) ?? false
+                let urlMatch = bookmark.url.absoluteString.localizedCaseInsensitiveContains(searchText)
+                let tagMatch = bookmark.tags.contains { tag in
+                    tag.localizedCaseInsensitiveContains(searchText)
+                }
+                
+                return titleMatch || urlMatch || tagMatch
+            }
+        }
+    }
+    
     var body: some View {
-        List(items) { bookmark in
+        List(filteredItems) { bookmark in
             BookmarkRowView(bookmark: bookmark)
         }
-        .animation(.default, value: items.count)
+        .searchable(text: $searchText, prompt: "Search bookmarks...")
+        .animation(.default, value: filteredItems.count)
         .navigationTitle("Bookmarks")
     }
 }
