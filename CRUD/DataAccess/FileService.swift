@@ -180,14 +180,15 @@ extension FileService {
     }
 }
 
-// MARK: JSONFileCollectionResourceRepository
+// MARK: Repository
 /**
  Usage Example:
  let bookmarkRepo = FileResourceRepository<Bookmark>()
  bookmarkRepo.save(.init(id: "1", url: URL(string: "https://apple.com")!, tags: ["swift", "news"]))
  let allBookmarks = bookmarkRepo.all()
  */
-class JSONFileCollectionResourceRepository<T: JSONFileCollectionResource> {
+@Observable
+final class JSONFileCollectionResourceRepository<T: JSONFileCollectionResource> {
     private let service: FileService
     private(set) var items: [T] = []
 
