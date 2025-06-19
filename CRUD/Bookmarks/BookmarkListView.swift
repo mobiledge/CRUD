@@ -14,16 +14,7 @@ struct BookmarkListView: View {
         if searchText.isEmpty {
             return items
         } else {
-            return items.filter { bookmark in
-                // Search in title, URL, and tags
-                let titleMatch = bookmark.title?.localizedCaseInsensitiveContains(searchText) ?? false
-                let urlMatch = bookmark.url.absoluteString.localizedCaseInsensitiveContains(searchText)
-                let tagMatch = bookmark.tags.contains { tag in
-                    tag.localizedCaseInsensitiveContains(searchText)
-                }
-                
-                return titleMatch || urlMatch || tagMatch
-            }
+            return items.filter { $0.matches(searchText: searchText) }
         }
     }
     
