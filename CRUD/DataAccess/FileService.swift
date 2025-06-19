@@ -20,7 +20,7 @@ extension FileService {
         case writeFailed(Error)
         case directoryUnavailable
     }
-
+    
     /// The default service instance, configured to use the app's document directory.
     static let `default` = FileService(
         fetch: { filename in
@@ -56,7 +56,7 @@ extension FileService {
     private static func url(for filename: String) -> URL? {
         FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first?.appendingPathComponent(filename)
     }
-
+    
     /// A mock service that uses an in-memory dictionary for storage.
     static func mock(initialFiles: [String: Data] = [:]) -> FileService {
         var store = initialFiles
@@ -70,45 +70,39 @@ extension FileService {
 
 
 // MARK: - Approach 1: Protocol-Oriented Resource
-
-// Trade-offs: Offers a clean, declarative API that works on a single service instance. It provides better error handling
-// and type safety by linking the model to its storage properties. Its main requirement is defining a resource type for each collection.
-/*
- // Usage Example:
- struct Task: Codable, Identifiable { let id: UUID; var title: String }
- struct TaskCollection: FileCollectionResource { typealias Item = Task } // Define the resource
-
+/**
+ Trade-offs:
+ Offers a clean, declarative API that works on a single service instance. It provides better error handling
+ and type safety by linking the model to its storage properties. Its main requirement is for the model type itself to conform to the protocol.
+ 
+ Usage Example:
+ struct Task: Codable, Identifiable, FileCollectionResource {
+ let id: UUID
+ var title: String
+ }
  let service = FileService.default
  let tasksToSave = [Task(id: .init(), title: "First"), Task(id: .init(), title: "Second")]
- 
- // Save multiple items to the collection
- _ = service.saveMany(upserting: tasksToSave, to: TaskCollection.self)
- 
- // Get all items
- if let tasks = try? service.all(for: TaskCollection.self).get() {
-     print("Found \(tasks.count) tasks.") // Found 2 tasks.
- }
-*/
+ _ = service.saveMany(upserting: tasksToSave, to: Task.self)
+ */
 protocol FileCollectionResource {
-    associatedtype Item: Identifiable
     static var filename: String { get }
-    static func encode(items: [Item]) -> Result<Data, Error>
-    static func decode(from data: Data) -> Result<[Item], Error>
+    static func encode(items: [Self]) -> Result<Data, Error>
+    static func decode(from data: Data) -> Result<[Self], Error>
 }
 
-extension FileCollectionResource where Item: Codable {
-    static var filename: String { "\(String(describing: Item.self).lowercased())s.json" }
-    static func encode(items: [Item]) -> Result<Data, Error> { Result { try JSONEncoder().encode(items) } }
-    static func decode(from data: Data) -> Result<[Item], Error> { Result { try JSONDecoder().decode([Item].self, from: data) } }
+extension FileCollectionResource where Self: Codable {
+    static var filename: String { "\(String(describing: Self.self).lowercased())s.json" }
+    static func encode(items: [Self]) -> Result<Data, Error> { Result { try JSONEncoder().encode(items) } }
+    static func decode(from data: Data) -> Result<[Self], Error> { Result { try JSONDecoder().decode([Self].self, from: data) } }
 }
 
 extension FileService {
     // MARK: Read Operations
-    func all<R: FileCollectionResource>(for resource: R.Type) -> Result<[R.Item], Error> {
-        switch fetch(resource.filename) {
+    func all<T: FileCollectionResource>(for resource: T.Type) -> Result<[T], Error> {
+        switch fetch(T.filename) {
         case .success(let data):
             // If the file is found, proceed with decoding.
-            return R.decode(from: data)
+            return T.decode(from: data)
         case .failure(let error):
             // If the error is `fileNotFound`, it's not a true failure for `all()`.
             // It simply means the collection is empty.
@@ -120,95 +114,97 @@ extension FileService {
         }
     }
     
-    func all<R: FileCollectionResource>(for resource: R.Type, where predicate: (R.Item) -> Bool) -> Result<[R.Item], Error> {
+    func all<T: FileCollectionResource>(for resource: T.Type, where predicate: (T) -> Bool) -> Result<[T], Error> {
         all(for: resource).map { $0.filter(predicate) }
     }
     
-    func find<R: FileCollectionResource>(id: R.Item.ID, in resource: R.Type) -> Result<R.Item?, Error> {
+    func find<T: FileCollectionResource & Identifiable>(id: T.ID, in resource: T.Type) -> Result<T?, Error> {
         all(for: resource).map { items in items.first { $0.id == id } }
     }
     
-    func find<R: FileCollectionResource>(where predicate: (R.Item) -> Bool, in resource: R.Type) -> Result<R.Item?, Error> {
+    func find<T: FileCollectionResource>(where predicate: (T) -> Bool, in resource: T.Type) -> Result<T?, Error> {
         all(for: resource).map { items in items.first(where: predicate) }
     }
-
+    
     // MARK: Write Operations
-    func replaceAll<R: FileCollectionResource>(with entities: [R.Item], for resource: R.Type) -> Result<Void, Error> {
-        R.encode(items: entities).flatMap { data in save(resource.filename, data) }
+    func replaceAll<T: FileCollectionResource>(with items: [T], for resource: T.Type) -> Result<Void, Error> {
+        T.encode(items: items).flatMap { data in save(T.filename, data) }
     }
-
-    func save<R: FileCollectionResource>(_ entity: R.Item, to resource: R.Type) -> Result<Void, Error> {
+    
+    func save<T: FileCollectionResource & Identifiable>(_ item: T, to resource: T.Type) -> Result<Void, Error> {
         all(for: resource).flatMap { currentItems in
             var items = currentItems
-            if let index = items.firstIndex(where: { $0.id == entity.id }) {
-                items[index] = entity
+            if let index = items.firstIndex(where: { $0.id == item.id }) {
+                items[index] = item
             } else {
-                items.append(entity)
+                items.append(item)
             }
             return replaceAll(with: items, for: resource)
         }
     }
     
-    func saveMany<R: FileCollectionResource>(upserting entities: [R.Item], to resource: R.Type) -> Result<Void, Error> {
-        guard !entities.isEmpty else { return .success(()) }
+    func saveMany<T: FileCollectionResource & Identifiable>(upserting itemsToSave: [T], to resource: T.Type) -> Result<Void, Error> {
+        guard !itemsToSave.isEmpty else { return .success(()) }
         return all(for: resource).flatMap { currentItems in
             var itemDict = Dictionary(uniqueKeysWithValues: currentItems.map { ($0.id, $0) })
-            for entity in entities {
-                itemDict[entity.id] = entity
+            for item in itemsToSave {
+                itemDict[item.id] = item
             }
             return replaceAll(with: Array(itemDict.values), for: resource)
         }
     }
-
+    
     // MARK: Delete Operations
-    func delete<R: FileCollectionResource>(_ entity: R.Item, from resource: R.Type) -> Result<Void, Error> {
+    func delete<T: FileCollectionResource & Identifiable>(_ item: T, from resource: T.Type) -> Result<Void, Error> {
         all(for: resource).flatMap { currentItems in
             var items = currentItems
-            items.removeAll { $0.id == entity.id }
+            items.removeAll { $0.id == item.id }
             return replaceAll(with: items, for: resource)
         }
     }
-
-    func delete<R: FileCollectionResource>(subset entities: [R.Item], from resource: R.Type) -> Result<Void, Error> {
-        guard !entities.isEmpty else { return .success(()) }
+    
+    func delete<T: FileCollectionResource & Identifiable>(subset itemsToDelete: [T], from resource: T.Type) -> Result<Void, Error> {
+        guard !itemsToDelete.isEmpty else { return .success(()) }
         return all(for: resource).flatMap { currentItems in
             var items = currentItems
-            let idsToDelete = Set(entities.map { $0.id })
+            let idsToDelete = Set(itemsToDelete.map { $0.id })
             items.removeAll { idsToDelete.contains($0.id) }
             return replaceAll(with: items, for: resource)
         }
     }
     
-    func deleteAll<R: FileCollectionResource>(for resource: R.Type) {
-        remove(resource.filename)
+    func deleteAll<T: FileCollectionResource>(for resource: T.Type) {
+        remove(T.filename)
     }
 }
 
 
 // MARK: - Approach 2: Configured Client
 
-// Trade-offs: Self-contained and bundles all logic for a collection into one object. However, it swallows errors,
-// provides weaker error handling, and requires instantiating and managing a client object for each collection.
-/*
- // Usage Example:
- struct Task: Codable, Identifiable { let id: UUID; var title: String }
+/**
+ Trade-offs:
+ Self-contained and bundles all logic for a collection into one object. However, it swallows errors,
+ provides weaker error handling, and requires instantiating and managing a client object for each collection.
 
+ Usage Example:
+ struct Task: Codable, Identifiable { let id: UUID; var title: String }
+ 
  let taskClient = FileClient<Task>(filename: "all_tasks.json")
  let tasksToSave = [Task(id: .init(), title: "First"), Task(id: .init(), title: "Second")]
-
+ 
  // Save multiple items
  taskClient.saveMany(upserting: tasksToSave)
  
  // Get all items
  let tasks = taskClient.all()
  print("Found \(tasks.count) tasks.") // Found 2 tasks.
-*/
+ */
 struct FileClient<T: Identifiable> {
     let service: FileService
     let filename: String
     let encode: ([T]) -> Result<Data, Error>
     let decode: (Data) -> Result<[T], Error>
-
+    
     init(
         service: FileService = .default,
         filename: String,
@@ -220,7 +216,7 @@ struct FileClient<T: Identifiable> {
         self.encode = encode
         self.decode = decode
     }
-
+    
     // MARK: Read Operations
     func all() -> [T] {
         guard case .success(let data) = service.fetch(filename) else { return [] }
@@ -243,7 +239,7 @@ struct FileClient<T: Identifiable> {
     func find(where predicate: (T) -> Bool) -> T? {
         all().first(where: predicate)
     }
-
+    
     // MARK: Write Operations
     func save(_ entity: T) {
         var items = all()
@@ -288,7 +284,7 @@ struct FileClient<T: Identifiable> {
         items.removeAll { idsToDelete.contains($0.id) }
         replaceAll(with: items)
     }
-
+    
     func deleteAll() {
         service.remove(filename)
     }
