@@ -204,12 +204,12 @@ class JSONFileCollectionResourceRepository<T: JSONFileCollectionResource> {
         switch service.all(for: T.self) {
         case .success(let loadedItems):
             self.items = loadedItems
-            logger.info("Successfully loaded \(loadedItems.count) items for \(String(describing: T.self))")
+            logger.info("\(String(describing: Self.self)): Successfully loaded \(loadedItems.count) \(String(describing: T.self))(s)")
         case .failure(let error):
             // This case handles errors like decoding failures. `service.all(for:)`
             // already handles `fileNotFound` by returning an empty array.
             self.items = []
-            logger.error("Failed to load items for \(String(describing: T.self)): \(error.localizedDescription)")
+            logger.error("\(String(describing: Self.self)): Failed to load items for \(String(describing: T.self)): \(error.localizedDescription)")
         }
     }
 
@@ -217,11 +217,9 @@ class JSONFileCollectionResourceRepository<T: JSONFileCollectionResource> {
     private func persist() {
         switch service.replaceAll(with: items, for: T.self) {
         case .success:
-            logger.info("Successfully persisted \(self.items.count) items for \(String(describing: T.self))")
+            logger.info("\(String(describing: Self.self)): Successfully persisted \(self.items.count) \(String(describing: T.self))(s)")
         case .failure(let error):
-            logger.error("Failed to persist items for \(String(describing: T.self)): \(error.localizedDescription)")
-            // In a real application, you might add more robust error handling here,
-            // such as notifying the user or attempting to roll back the in-memory change.
+            logger.error("\(String(describing: Self.self)): to persist items for \(String(describing: T.self)): \(error.localizedDescription)")
         }
     }
     

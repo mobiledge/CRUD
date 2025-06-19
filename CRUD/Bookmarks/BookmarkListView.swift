@@ -3,53 +3,27 @@ import SwiftUI
 
 struct BookmarkListView: View {
     
-    @State private var itemsRemoved = [Bookmark]()
-    
     @Environment(BookmarkRepository.self) private var repo
     
     private var items: [Bookmark] {
         repo.items
     }
     
-    
     var body: some View {
         List(items) { bookmark in
             BookmarkRowView(bookmark: bookmark)
         }
         .animation(.default, value: items.count)
-    }
-    
-    func loadInitial() {
-        let arr = try! BundleService.default.get(Bookmark.self).get()
-        repo.saveMany(upserting: arr)
-    }
-    
-    func removeAll() {
-        repo.deleteAll()
-    }
-    
-    func removeFirst() {
-        let first = items.first!
-        itemsRemoved.append(first)
-        repo.delete(first)
-    }
-    
-    func insertOne() {
-        if let first = itemsRemoved.first {
-            itemsRemoved.remove(at: 0)
-            repo.save(first)
-        }
-    }
-    
-    func insertAll() {
-        repo.saveMany(upserting: itemsRemoved)
-        itemsRemoved.removeAll()
+        .navigationTitle("Bookmarks")
     }
 }
 
 // MARK: Preview
 #Preview {
-    BookmarkListView()
+    NavigationStack {
+        BookmarkListView()
+            .environment(BookmarkRepository())
+    }
 }
 
 // MARK: BookmarkRowView
