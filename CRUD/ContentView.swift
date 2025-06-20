@@ -8,11 +8,12 @@
 import SwiftUI
 
 struct ContentView: View {
+    @State private var searchTokens = [Token]()
     var body: some View {
         NavigationSplitView {
-            TagListView()
+            TagListView(searchTokens: $searchTokens)
         } detail: {
-            BookmarkListView()
+            BookmarkListView(searchTokens: $searchTokens)
         }
     }
 }

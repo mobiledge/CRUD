@@ -2,40 +2,30 @@ import Foundation
 import SwiftUI
 
 struct BookmarkListView: View {
-    
+    @Binding var searchTokens: [Token]
     @Environment(BookmarkRepository.self) private var repo
     @State private var searchText = ""
-    @State private var currentTokens = [Token]()
     
     private var items: [Bookmark] {
         repo.items
     }
     
     private var filteredItems: [Bookmark] {
-        if searchText.isEmpty && currentTokens.isEmpty {
+        if searchText.isEmpty && searchTokens.isEmpty {
             return items
         } else {
-            return items.filter { $0.matches(text: searchText, andTokens: currentTokens) }
+            return items.filter { $0.matches(text: searchText, andTokens: searchTokens) }
         }
     }
     
     var body: some View {
-        
-        Button("Add Token") {
-            let tag = repo.items.randomElement()!.tags.randomElement()!
-            let token = Token(name: tag)
-            currentTokens.append(token)
-        }
-        
-        Text("Count: \(filteredItems.count)")
-        
         List(filteredItems) { bookmark in
             BookmarkRowView(bookmark: bookmark)
         }
-//        .searchable(text: $searchText, prompt: "Search bookmarks...")
+        .listStyle(.plain)
         .searchable(
             text: $searchText,
-            tokens: $currentTokens,
+            tokens: $searchTokens,
             prompt: Text("Type to filter, or use # for tags")
         ) { token in
             Text(token.name)
@@ -48,7 +38,7 @@ struct BookmarkListView: View {
 // MARK: Preview
 #Preview {
     NavigationStack {
-        BookmarkListView()
+        BookmarkListView(searchTokens: .constant([Token]()))
             .environment(BookmarkRepository.mock())
     }
 }

@@ -1,10 +1,13 @@
 import SwiftUI
 
 struct TagListView: View {
+    @Binding var searchTokens: [Token]
     @Environment(BookmarkRepository.self) private var repo
     @State private var searchText = ""
-    @State private var searchTokens = [Token]()
     
+    private var selectedTagNames: Set<String> {
+        Set(searchTokens.map { $0.name })
+    }
     private var tags: [String] {
         repo.tags
     }
@@ -30,6 +33,16 @@ struct TagListView: View {
                     
                     TextField("Search tags...", text: $searchText)
                         .textFieldStyle(.plain)
+                    
+                    if !searchText.isEmpty {
+                        Button(action: {
+                            searchText = ""
+                        }) {
+                            Image(systemName: "xmark.circle.fill")
+                                .foregroundStyle(.secondary)
+                        }
+                        .buttonStyle(.plain)
+                    }
                 }
                 .padding(.horizontal, 12)
                 .padding(.vertical, 8)
@@ -47,16 +60,31 @@ struct TagListView: View {
             ZStack(alignment: .bottom) {
                 List(filtered, id: \.self) { tag in
                     HStack {
-                        Image(systemName: "tag")
-                            .foregroundStyle(.secondary)
+                        Image(systemName: selectedTagNames.contains(tag) ? "checkmark.circle.fill" : "tag")
+                            .foregroundStyle(selectedTagNames.contains(tag) ? .blue : .secondary)
                         Text(tag)
                             .font(.body)
                             .foregroundStyle(.primary)
+                        
+                        Spacer()
+                        
+                        if selectedTagNames.contains(tag) {
+                            Image(systemName: "checkmark")
+                                .foregroundStyle(.blue)
+                                .font(.body.weight(.semibold))
+                        }
                     }
                     .font(.body)
+                    .contentShape(Rectangle())
+                    .onTapGesture {
+                        if selectedTagNames.contains(tag) {
+                            searchTokens.removeAll { $0.name == tag }
+                        } else {
+                            searchTokens.append(Token(name: tag))
+                        }
+                    }
                 }
-                .animation(.default, value: tags.count)
-                
+                .animation(.default, value: tags.count)                
                 // Count display at bottom
                 Text("Count: \(tags.count)")
                     .font(.headline)
@@ -78,7 +106,7 @@ struct TagListView: View {
 
 #Preview {
     NavigationSplitView {
-        TagListView()
+        TagListView(searchTokens: .constant([Token(name: "swift"), Token(name: "ios")]))
     } detail: {
         Text("Detail")
     }
