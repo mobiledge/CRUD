@@ -25,15 +25,15 @@ extension BundleService {
 /*
  // Usage Example:
  struct User: Codable { let name: String }
-
+ 
  let userClient = BundleClient<User>(
-     service: .default,
-     resource: "user",
-     ext: "json",
-     decodeHandler: { data in Result { try JSONDecoder().decode(User.self, from: data) } }
+ service: .default,
+ resource: "user",
+ ext: "json",
+ decodeHandler: { data in Result { try JSONDecoder().decode(User.self, from: data) } }
  )
  let userResult = userClient.dataForResource()
-*/
+ */
 
 // MARK: BundleClient<T>
 struct BundleClient<T> {
@@ -113,8 +113,8 @@ extension Bundle {
      Returns the data for a resource, wrapped in a `Result` type.
      
      - Parameters:
-       - name: The name of the resource file.
-       - ext: The extension of the resource file.
+     - name: The name of the resource file.
+     - ext: The extension of the resource file.
      - Returns: A `Result` containing the resource's `Data` or a `BundleError`.
      */
     func data(forResource name: String?, withExtension ext: String?) -> Result<Data, Error> {
@@ -173,3 +173,38 @@ func loadPlistFromBundle<T: Decodable>(_ bundle: Bundle, fileName: String) -> T?
         return nil
     }
 }
+
+//MARK: Approach 4 - Hybrid
+/// This might be most suitable for Bundle comsidering the simplicity.
+// Final Recommended Version
+extension BundleService {
+    /**
+     Loads and decodes a JSON resource from the main bundle into a specified Decodable type.
+     - Parameters:
+        - resource: The name of the resource file.
+        - fileExtension: The extension of the resource file (e.g., "json").
+        - decoder: The JSONDecoder to use for decoding. Defaults to a new instance.
+     - Returns: A `Result` containing the decoded object on success or an `Error` on failure.
+    */
+    func loadDecodable<T: Decodable>(
+        fromResource resource: String,
+        withExtension fileExtension: String,
+        decoder: JSONDecoder = JSONDecoder()
+    ) -> Result<T, Error> {
+        
+        dataForResource(resource, fileExtension)
+            .flatMap { data in
+                do {
+                    return .success(try decoder.decode(T.self, from: data))
+                } catch {
+                    logger.error("""
+                        Failed to decode \(String(describing: T.self)) \
+                        from resource "\(resource).\(fileExtension)". \
+                        Error: \(error.localizedDescription)
+                        """)
+                    return .failure(error)
+                }
+            }
+    }
+}
+

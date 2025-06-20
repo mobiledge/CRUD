@@ -24,7 +24,7 @@ struct TagListView: View {
     
     var body: some View {
         VStack(spacing: 12) {
-            // Search bar
+            // MARK: Search bar
             HStack {
                 Image(systemName: "magnifyingglass")
                     .foregroundStyle(.secondary)
@@ -49,37 +49,74 @@ struct TagListView: View {
                     .fill(Color(.systemGray5))
                     .padding(.horizontal, 12)
             }
-            
-            // Tag List
-            List(filtered, id: \.self) { tag in
-                HStack {
-                    Image(systemName: selectedTagNames.contains(tag) ? "checkmark.circle.fill" : "tag")
-                        .foregroundStyle(selectedTagNames.contains(tag) ? .blue : .secondary)
-                    Text(tag)
+            // MARK: Tag List
+            List {
+                Section(header: header) {
+                    ForEach(filtered, id: \.self) { tag in
+                        // MARK: List Row
+                        HStack {
+                            Image(systemName: selectedTagNames.contains(tag) ? "checkmark.circle.fill" : "tag")
+                                .foregroundStyle(selectedTagNames.contains(tag) ? .blue : .secondary)
+                            Text(tag)
+                                .font(.body)
+                                .foregroundStyle(.primary)
+                            
+                            Spacer()
+                            
+                            if selectedTagNames.contains(tag) {
+                                Image(systemName: "checkmark")
+                                    .foregroundStyle(.blue)
+                                    .font(.body.weight(.semibold))
+                            }
+                        }
                         .font(.body)
-                        .foregroundStyle(.primary)
-                    
-                    Spacer()
-                    
-                    if selectedTagNames.contains(tag) {
-                        Image(systemName: "checkmark")
-                            .foregroundStyle(.blue)
-                            .font(.body.weight(.semibold))
-                    }
-                }
-                .font(.body)
-                .contentShape(Rectangle())
-                .onTapGesture {
-                    if selectedTagNames.contains(tag) {
-                        searchTokens.removeAll { $0.name == tag }
-                    } else {
-                        searchTokens.append(Token(name: tag))
+                        .contentShape(Rectangle())
+                        .onTapGesture {
+                            if selectedTagNames.contains(tag) {
+                                searchTokens.removeAll { $0.name == tag }
+                            } else {
+                                searchTokens.append(Token(name: tag))
+                            }
+                        }
                     }
                 }
             }
+            .listStyle(.inset)
             .animation(.default, value: tags.count)
         }
         .navigationTitle("Tags")
+    }
+    
+    var header: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("TAGS")
+                .font(.headline)
+            
+            // MARK: Search bar
+            HStack {
+                Image(systemName: "magnifyingglass")
+                    .foregroundStyle(.secondary)
+                
+                TextField("Filter tags...", text: $searchText)
+                    .textFieldStyle(.plain)
+                
+                if !searchText.isEmpty {
+                    Button(action: {
+                        searchText = ""
+                    }) {
+                        Image(systemName: "xmark.circle.fill")
+                            .foregroundStyle(.secondary)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 12)
+            .background {
+                RoundedRectangle(cornerRadius: 9)
+                    .fill(Color(.systemGray5))
+            }
+        }
     }
 }
 
