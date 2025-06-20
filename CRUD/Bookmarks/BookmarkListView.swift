@@ -48,44 +48,57 @@ struct BookmarkRowView: View {
     let bookmark: Bookmark
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            if let title = bookmark.title, !title.isEmpty {
-                Text(title)
-                    .font(.headline)
-                    .lineLimit(2)
-                
-                Text(bookmark.url.absoluteString)
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
-                    .lineLimit(1)
-            } else {
-                Text(bookmark.url.absoluteString)
-                    .font(.headline)
-                    .foregroundColor(.blue)
-                    .lineLimit(1)
+        HStack(alignment: .center, spacing: 24) {
+            // Favicon Image
+            AsyncImage(url: bookmark.faviconURL) { phase in
+                if let image = phase.image {
+                    image
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 24, height: 24)
+                        .clipShape(RoundedRectangle(cornerRadius: 4))
+                } else {
+                    Image(systemName: "globe")
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 24, height: 24)
+                        .foregroundColor(.secondary)
+                }
             }
             
-            if !bookmark.tags.isEmpty {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 6) {
-                        ForEach(Array(bookmark.tags.sorted()), id: \.self) { tag in
-                            Text(tag)
-                                .font(.caption)
-                                .padding(.horizontal, 8)
-                                .padding(.vertical, 4)
-                                .background(Color.blue.opacity(0.1))
-                                .foregroundColor(.blue)
-                                .cornerRadius(12)
-                        }
-                    }
-                    .padding(.horizontal, 1)
+            VStack(alignment: .leading) {
+                // Title and URL
+                if let title = bookmark.title, !title.isEmpty {
+                    Text(title)
+                        .font(.body)
+                    
+                    Text(bookmark.url.host ?? "...")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                        .lineLimit(1)
+                } else {
+                    Text(bookmark.url.absoluteString)
+                        .font(.body)
+                        .foregroundColor(.blue)
+                        .lineLimit(1)
                 }
             }
         }
-        .padding(.vertical, 4)
+    }
+    
+    /// A computed property to create a single, compact string for date information.
+    private var dateInfo: String? {
+        // Prioritize showing the 'updated' date if it exists
+        if let dateModified = bookmark.dateModified {
+            return "Updated: \(dateModified.formatted(date: .numeric, time: .omitted))"
+        }
+        // Fallback to the 'added' date
+        if let dateAdded = bookmark.dateAdded {
+            return "Added: \(dateAdded.formatted(date: .numeric, time: .omitted))"
+        }
+        return nil
     }
 }
-
 #Preview {
     BookmarkRowView(bookmark: Bookmark.mockValue)
 }

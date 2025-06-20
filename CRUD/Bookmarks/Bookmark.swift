@@ -4,6 +4,9 @@ struct Bookmark: Codable, Identifiable  {
     let id: String
     let title: String?
     let url: URL
+    let dateAdded: Date?
+    let dateModified: Date?
+    let faviconURL: URL?
     let tags: Set<String>
     
     func matches(text: String) -> Bool {
@@ -34,6 +37,18 @@ struct Bookmark: Codable, Identifiable  {
         let matches = matches(text: text) && matches(tokens: tokens)
         return matches
     }
+    
+    static let encoder = {
+        let en = JSONEncoder()
+        en.dateEncodingStrategy = .iso8601
+        return en
+    }()
+    
+    static let decoder = {
+        let de = JSONDecoder()
+        de.dateDecodingStrategy = .iso8601
+        return de
+    }()
 }
 
 struct Token: Identifiable {
@@ -51,9 +66,18 @@ extension Bookmark {
     }
 }
 
-extension Bookmark: BundleResourceCollection {}
-
-extension Bookmark: JSONFileCollectionResource {}
+extension Bookmark: BundleResourceCollection, JSONFileCollectionResource {
+    static func encode(items: [Bookmark]) -> Result<Data, Error> {
+        Result {
+            try Bookmark.encoder.encode(items)
+        }
+    }
+    static func decode(from data: Data) -> Result<[Bookmark], Error> {
+        Result {
+            try Bookmark.decoder.decode([Bookmark].self, from: data)
+        }
+    }
+}
 
 typealias BookmarkRepository = JSONFileCollectionResourceRepository<Bookmark>
 

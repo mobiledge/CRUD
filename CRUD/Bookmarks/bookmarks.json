@@ -3,118 +3,178 @@
     "id": "B6C2B2A3-446A-4D9A-97B2-2E24E1A4A7A7",
     "title": "Swift on Apple Developer",
     "url": "https://developer.apple.com/swift/",
-    "tags": ["swift", "programming", "apple", "development"]
+    "tags": ["swift", "programming", "apple", "development"],
+    "dateAdded": "2025-06-19T19:10:47Z",
+    "dateModified": "2025-06-19T19:10:47Z",
+    "faviconURL": "https://developer.apple.com/favicon.ico"
   },
   {
     "id": "D1E8F2B9-819A-4C7B-8E7F-9A0B3D5C7E9A",
     "title": "Hacking with Swift",
     "url": "https://www.hackingwithswift.com",
-    "tags": ["swift", "tutorials", "learning", "ios"]
+    "tags": ["swift", "tutorials", "learning", "ios"],
+    "dateAdded": "2025-06-19T19:10:47Z",
+    "dateModified": "2025-06-19T19:10:47Z",
+    "faviconURL": "https://www.hackingwithswift.com/favicon.ico"
   },
   {
     "id": "A9F8E7D6-C5B4-A3D2-B1A0-9F8E7D6C5B4A",
     "title": "iOS & Swift Tutorials on Ray Wenderlich",
     "url": "https://www.raywenderlich.com/ios",
-    "tags": ["ios", "mobile", "development", "tutorials"]
+    "tags": ["ios", "mobile", "development", "tutorials"],
+    "dateAdded": "2025-06-19T19:10:47Z",
+    "dateModified": "2025-06-19T19:10:47Z",
+    "faviconURL": "https://www.raywenderlich.com/favicon.ico"
   },
   {
     "id": "F3E2D1C0-B9A8-7654-3210-FEDCBA987654",
     "title": "GitHub",
     "url": "https://github.com",
-    "tags": ["git", "version control", "development", "tools"]
+    "tags": ["git", "version control", "development", "tools"],
+    "dateAdded": "2025-06-19T19:10:47Z",
+    "dateModified": "2025-06-19T19:10:47Z",
+    "faviconURL": "https://github.com/favicon.ico"
   },
   {
     "id": "1A2B3C4D-5E6F-7890-ABCD-EFEF12121212",
     "title": "Stack Overflow",
     "url": "https://stackoverflow.com",
-    "tags": ["programming", "q&a", "development", "community"]
+    "tags": ["programming", "q&a", "development", "community"],
+    "dateAdded": "2025-06-19T19:10:47Z",
+    "dateModified": "2025-06-19T19:10:47Z",
+    "faviconURL": "https://stackoverflow.com/favicon.ico"
   },
   {
     "id": "2B3C4D5E-6F78-90AB-CDEF-12121212EFEF",
     "title": "Swift.org",
     "url": "https://www.swift.org",
-    "tags": ["swift", "official", "documentation", "news"]
+    "tags": ["swift", "official", "documentation", "news"],
+    "dateAdded": "2025-06-19T19:10:47Z",
+    "dateModified": "2025-06-19T19:10:47Z",
+    "faviconURL": "https://www.swift.org/favicon.ico"
   },
   {
     "id": "3C4D5E6F-7890-ABCD-EF12-1212EFEF1212",
     "url": "https://medium.com/swift-programming",
-    "tags": ["swift", "articles", "blog", "community"]
+    "tags": ["swift", "articles", "blog", "community"],
+    "dateAdded": "2025-06-19T19:10:47Z",
+    "dateModified": "2025-06-19T19:10:47Z",
+    "faviconURL": "https://medium.com/favicon.ico"
   },
   {
     "id": "4D5E6F78-90AB-CDEF-1212-EFEF12121212",
     "title": "UIKit Documentation",
     "url": "https://developer.apple.com/documentation/uikit",
-    "tags": ["uikit", "ios", "apple", "framework"]
+    "tags": ["uikit", "ios", "apple", "framework"],
+    "dateAdded": "2025-06-19T19:10:47Z",
+    "dateModified": "2025-06-19T19:10:47Z",
+    "faviconURL": "https://developer.apple.com/favicon.ico"
   },
   {
     "id": "5E6F7890-ABCD-EF12-1212-12121212EFEF",
     "title": "SwiftUI Documentation",
     "url": "https://developer.apple.com/documentation/swiftui",
-    "tags": ["swiftui", "ios", "apple", "framework", "declarative"]
+    "tags": ["swiftui", "ios", "apple", "framework", "declarative"],
+    "dateAdded": "2025-06-19T19:10:47Z",
+    "dateModified": "2025-06-19T19:10:47Z",
+    "faviconURL": "https://developer.apple.com/favicon.ico"
   },
   {
     "id": "6F7890AB-CDEF-1212-EFEF-121212121212",
     "title": "NSHipster",
     "url": "https://nshipster.com",
-    "tags": ["swift", "objective-c", "ios", "blog"]
+    "tags": ["swift", "objective-c", "ios", "blog"],
+    "dateAdded": "2025-06-19T19:10:47Z",
+    "dateModified": "2025-06-19T19:10:47Z",
+    "faviconURL": "https://nshipster.com/favicon.ico"
   },
   {
     "id": "7890ABCD-EF12-1212-1212-EFEF12121212",
     "title": "Donny Wals - A Weekly Blog on Swift and iOS Development",
     "url": "https://www.donnywals.com",
-    "tags": ["swift", "ios", "blog", "combine"]
+    "tags": ["swift", "ios", "blog", "combine"],
+    "dateAdded": "2025-06-19T19:10:47Z",
+    "dateModified": "2025-06-19T19:10:47Z",
+    "faviconURL": "https://www.donnywals.com/favicon.ico"
   },
   {
     "id": "890ABCDE-F121-2121-212E-FEF121212121",
     "title": "Figma: The Collaborative Interface Design Tool",
     "url": "https://figma.com",
-    "tags": ["design", "ui", "ux", "tools"]
+    "tags": ["design", "ui", "ux", "tools"],
+    "dateAdded": "2025-06-19T19:10:47Z",
+    "dateModified": "2025-06-19T19:10:47Z",
+    "faviconURL": "https://figma.com/favicon.ico"
   },
   {
     "id": "90ABCDEF-1212-1212-EFEF-121212121212",
     "title": "Dribbble",
     "url": "https://dribbble.com",
-    "tags": ["design", "inspiration", "ui", "ux"]
+    "tags": ["design", "inspiration", "ui", "ux"],
+    "dateAdded": "2025-06-19T19:10:47Z",
+    "dateModified": "2025-06-19T19:10:47Z",
+    "faviconURL": "https://dribbble.com/favicon.ico"
   },
   {
     "id": "ABCDEF12-1212-EFEF-1212-121212121212",
     "url": "https://developer.android.com/kotlin",
-    "tags": ["kotlin", "android", "programming", "mobile"]
+    "tags": ["kotlin", "android", "programming", "mobile"],
+    "dateAdded": "2025-06-19T19:10:47Z",
+    "dateModified": "2025-06-19T19:10:47Z",
+    "faviconURL": "https://developer.android.com/favicon.ico"
   },
   {
     "id": "BCDEF121-212E-FEF1-2121-212121212121",
     "title": "Tailwind CSS",
     "url": "https://tailwindcss.com",
-    "tags": ["css", "web", "frontend", "framework"]
+    "tags": ["css", "web", "frontend", "framework"],
+    "dateAdded": "2025-06-19T19:10:47Z",
+    "dateModified": "2025-06-19T19:10:47Z",
+    "faviconURL": "https://tailwindcss.com/favicon.ico"
   },
   {
     "id": "CDEF1212-12EF-EF12-1212-121212121212",
     "title": "React",
     "url": "https://react.dev",
-    "tags": ["javascript", "web", "frontend", "library"]
+    "tags": ["javascript", "web", "frontend", "library"],
+    "dateAdded": "2025-06-19T19:10:47Z",
+    "dateModified": "2025-06-19T19:10:47Z",
+    "faviconURL": "https://react.dev/favicon.ico"
   },
   {
     "id": "DEF12121-2EFE-F121-2121-212121212121",
     "title": "Vue.js",
     "url": "https://vuejs.org",
-    "tags": ["javascript", "web", "frontend", "framework"]
+    "tags": ["javascript", "web", "frontend", "framework"],
+    "dateAdded": "2025-06-19T19:10:47Z",
+    "dateModified": "2025-06-19T19:10:47Z",
+    "faviconURL": "https://vuejs.org/favicon.ico"
   },
   {
     "id": "EF121212-EFEF-1212-1212-121212121212",
     "title": "Firebase",
     "url": "https://firebase.google.com",
-    "tags": ["backend", "database", "cloud", "google"]
+    "tags": ["backend", "database", "cloud", "google"],
+    "dateAdded": "2025-06-19T19:10:47Z",
+    "dateModified": "2025-06-19T19:10:47Z",
+    "faviconURL": "https://firebase.google.com/favicon.ico"
   },
   {
     "id": "F1212121-FEF1-2121-2121-212121212121",
     "title": "MongoDB Atlas",
     "url": "https://www.mongodb.com/atlas",
-    "tags": ["database", "nosql", "cloud", "backend"]
+    "tags": ["database", "nosql", "cloud", "backend"],
+    "dateAdded": "2025-06-19T19:10:47Z",
+    "dateModified": "2025-06-19T19:10:47Z",
+    "faviconURL": "https://www.mongodb.com/favicon.ico"
   },
   {
     "id": "12121212-1212-1212-1212-121212121212",
     "title": "WWDC Videos - Apple Developer",
     "url": "https://developer.apple.com/videos/wwdc/",
-    "tags": ["apple", "wwdc", "conference", "videos"]
+    "tags": ["apple", "wwdc", "conference", "videos"],
+    "dateAdded": "2025-06-19T19:10:47Z",
+    "dateModified": "2025-06-19T19:10:47Z",
+    "faviconURL": "https://developer.apple.com/favicon.ico"
   }
 ]
