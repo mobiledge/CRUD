@@ -49,7 +49,7 @@ struct BookmarkListView: View {
 #Preview {
     NavigationStack {
         BookmarkListView()
-            .environment(BookmarkRepository())
+            .environment(BookmarkRepository.mock())
     }
 }
 

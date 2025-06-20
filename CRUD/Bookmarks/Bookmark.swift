@@ -63,4 +63,11 @@ extension BookmarkRepository {
         repo.saveMany(upserting: Bookmark.mockCollection)
         return repo
     }
+    
+    var tags: [String] {
+        let set = Set(items.flatMap { $0.tags })
+        var arr = Array(set)
+        arr.sort()
+        return arr
+    }
 }
