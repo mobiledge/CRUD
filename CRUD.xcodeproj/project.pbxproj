@@ -33,6 +33,11 @@
 			path = CRUD;
 			sourceTree = "<group>";
 		};
+		C1CCF1122E21AD3B00DE2949 /* Views */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = Views;
+			sourceTree = "<group>";
+		};
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -56,6 +61,7 @@
 		C1B0506F2DDD50CE00798800 = {
 			isa = PBXGroup;
 			children = (
+				C1CCF1122E21AD3B00DE2949 /* Views */,
 				C144AC862DE138E400091FDE /* HTTPClientTests.playground */,
 				C1B0507A2DDD50CE00798800 /* CRUD */,
 				C144AC8C2DE145DC00091FDE /* CRUDTests */,
@@ -112,6 +118,7 @@
 			);
 			fileSystemSynchronizedGroups = (
 				C1B0507A2DDD50CE00798800 /* CRUD */,
+				C1CCF1122E21AD3B00DE2949 /* Views */,
 			);
 			name = CRUD;
 			packageProductDependencies = (

@@ -15,16 +15,17 @@ struct ProductListView: View {
                 }
             } else {
                 List(viewModel.products) { product in
-                    NavigationLink(
-                        product.name,
-                        destination: {
-                            ProductDetailView(
-                                viewModel: ProductDetailViewModel(
-                                    productId: product.id,
-                                    repository: viewModel.repository
-                                )
+                    
+                    NavigationLink {
+                        ProductDetailView(
+                            viewModel: ProductDetailViewModel(
+                                productId: product.id,
+                                repository: viewModel.repository
                             )
-                    })
+                        )
+                    } label: {
+                        ListRow(title: product.name, subtitle: product.price)
+                    }
                 }
                 .refreshable {
                     await viewModel.fetchProducts()
